@@ -15,12 +15,12 @@ from mtaho.src.BasicOpt import Opt
 workDir = f"{projectDir}/mtaho/w01"
 
 def contourFunHimmelblau(X, Y):
-    tmp1 = X**2 + X - 11
+    tmp1 = X**2 + Y - 11
     tmp2 = X + Y**2 - 7
     f = tmp1**2 + tmp2**2
     return f
 
-x0 = np.array([-4, 0])
+x0 = np.array([0, -2])
 xLower = [-5, -5]
 xUpper = [5, 5]
 bounds = Bounds(xLower, xUpper)
@@ -72,29 +72,31 @@ res3 = minimize(objFunGradHimmelblau, x0, jac=True,
 
 
 # Plot solutions
+xlim = [-5, 5]
+ylim = [-5, 5]
 fig, ax = Opt.contourPlot(contourFunHimmelblau,
-                          xlim=[-5, 5], ylim=[-5, 5], vmax=200,
+                          xlim=xlim, ylim=ylim, vmax=200,
                           colorScale='linear', figSize=(8, 5))
-
-ax.plot(x0[0], x0[1], 'go', label='$x^0$')
-ax.plot(res1.x[0], res1.x[1], 'r*', label=r'$x^\ast_1$', markersize=10)
-ax.plot(res2.x[0], res2.x[1], 'ms', markerfacecolor='none', markersize=10, 
+ms = 8
+ax.plot(x0[0], x0[1], 'go', label='$x^0$', markersize=ms)
+ax.plot(res1.x[0], res1.x[1], 'r*', label=r'$x^\ast_1$', markersize=ms)
+ax.plot(res2.x[0], res2.x[1], 'ms', markerfacecolor='none', markersize=ms, 
         label=r'$x^\ast_2$', markeredgewidth=2)
-ax.plot(res3.x[0], res3.x[1], 'b^', markerfacecolor='none', markersize=10, 
+ax.plot(res3.x[0], res3.x[1], 'b^', markerfacecolor='none', markersize=ms, 
         label=r'$x^\ast_3$', markeredgewidth=2)
 
 # Draw constraints
-xc = np.linspace(-5, 5)
+xc = np.linspace(xlim[0], xlim[1])
 alpha = 0.5
 yc1 = (xc+2)**2
 yc2 = (4*xc)/10
-ax.fill(xc, yc1, "c", color='grey', alpha=alpha, label='$c_1$',
+ax.fill(xc, yc1, color='grey', alpha=alpha, label='$c_1$',
         hatch='\\') 
 ax.fill_between(xc, yc2, np.repeat(-5, 50), color='grey', alpha=alpha, label='$c_2$',
                 hatch='/') 
 
-ax.set_xlim([-5, 5])
-ax.set_ylim([-5, 5])
+ax.set_xlim(xlim)
+ax.set_ylim(xlim)
 
 ax.legend(bbox_to_anchor=(1.5, 1))
 fig.tight_layout()
