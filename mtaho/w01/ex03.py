@@ -44,19 +44,22 @@ def funJacEx3(x):
 x0 = np.array([1.7, 2.1])
 tmp, c0, J0 = funJacEx3(x0)              
 
-# Jacobian
+# # Jacobian
 J0_num = FD.jacobian(funJacEx3, c0, x0)
 
-print(f"J0 = \n {J0.T}, \n J0_num = \n {J0_num.T}")
+print(f"J0 = \n {J0.T}, \nJ0_num = \n {J0_num.T}")
 print(f"Relative difference: (df0_num-df0)/df0 = \n "
       f"{(J0_num-J0)/J0*100} %")
 
-# # Jacobian
-# d2f0_num = FD.jacobian(funEx2, df0, x0)
+# Hessian
+c0, dc0, d2c0 = funEx3(x0)
 
-# print(f"d2f0 = \n {d2f0}, \n d2f0_num = \n {d2f0_num.T}")
-# print(f"Relative difference: (d2f0_num-d2f0)/d2f0 = \n"
-#       f"{(d2f0_num-d2f0)/d2f0*100} %")
+d2c0_num = FD.hessian(funEx3, dc0, x0)
+    
+print("hello")
+print(f"d2c0 = \n {d2c0.T}, \n d2f0_num = \n {d2c0_num.T}")
+print(f"Relative difference: (d2f0_num-d2f0)/d2f0 = \n"
+      f"{(d2c0_num-d2c0)/d2c0*100} %")
 
 # FD.plotFiniteDifferenceCheck(funEx2, x0, f0, df0, d2f0,
 #                              outPath=f'{workDir}/ex2FDcheck.png')

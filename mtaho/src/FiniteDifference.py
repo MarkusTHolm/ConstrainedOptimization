@@ -44,9 +44,34 @@ class FD:
             J[:, i] = dcdxi.T
         return J
     
+    def hessian(fun, dc, x, pert=None):
+        """ Approximate the Hessian of a multivariable vector function
+             using forward finite-difference """
+        eps = np.finfo(np.float64).eps
+        if not pert:
+            pert = np.sqrt(eps)
+        nx = len(x)
+        nc = np.shape(dc)[1]
+        d2c = np.zeros((nx, nx, nc))
+
+        for j in range(nc):
+            dcj = dc[:, j:j+1]
+            for i in range(nx):
+                h = pert*np.max(np.array([1.0, np.abs(x[i])]))
+                xh = x.copy()
+                xh[i] = xh[i] + h
+                h = xh[i] - x[i]
+                dchj = fun(xh)[1][:, j:j+1]
+                d2ci = (dchj - dcj)/h
+                d2c[i, :, j] = d2ci.ravel()
+
+        return d2c
+    
+
     def plotFiniteDifferenceCheck(fun, x0, f0, df0, d2f0, 
                                   outPath=None, fontSize=20):
-        """ Check sensitivies with finite difference values """
+        """ Check analytical sensitivies of scalar valued function 
+            with finite difference approximated values """
 
         # Dimension of the problem
         n = len(x0)
