@@ -6,9 +6,9 @@
     "configurations": [
         {
             "name": "Python: Current File",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
-            "program": "/home/mtaho/OneDrive/PhD/08_Courses/ConstrainedOptimization/Code/mtaho/w01/ex03.py",
+            "program": "/home/mtaho/OneDrive/PhD/08_Courses/ConstrainedOptimization/Code/mtaho/w01/himmelbau.py",
             "console": "integratedTerminal",
             "justMyCode": true
         }
