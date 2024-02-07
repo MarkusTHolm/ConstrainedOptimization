@@ -20,7 +20,7 @@ def contourFunHimmelblau(X, Y):
     f = tmp1**2 + tmp2**2
     return f
 
-x0 = np.array([0, -2])
+x0 = np.array([-3, 0])
 xLower = [-5, -5]
 xUpper = [5, 5]
 bounds = Bounds(xLower, xUpper)
