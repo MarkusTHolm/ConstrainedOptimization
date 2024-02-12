@@ -8,7 +8,7 @@
             "name": "Python: Current File",
             "type": "debugpy",
             "request": "launch",
-            "program": "/home/mtaho/OneDrive/PhD/08_Courses/ConstrainedOptimization/Code/mtaho/w01/himmelbau.py",
+            "program": "/home/mtaho/Code/Courses/ConstrainedOptimization/mtaho/w02/ex04.py",
             "console": "integratedTerminal",
             "justMyCode": true
         }

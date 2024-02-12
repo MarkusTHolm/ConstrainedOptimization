@@ -60,7 +60,7 @@ def cons_J(x):
     return [2*(x[0] + 2), - 1]
 nonlinear_constraint = NonlinearConstraint(cons_f, 0, np.inf, jac=cons_J)
 
-# c2 = -4*x1 + 10*x2 (Linear constraint)
+# c2 = -4*x1 + 10*x2 >= 0 (Linear constraint)
 A = [-4, 10]
 linear_constraint = LinearConstraint(A, [0], [np.inf])
 

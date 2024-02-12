@@ -22,7 +22,10 @@ class Opt:
         if colorScale == 'linear':
             norm = 'linear'
             nlevels = 20
-            levels = np.arange(0, vmax, vmax/nlevels)
+            if vmax is not None:
+                levels = np.arange(0, vmax, vmax/nlevels)
+            else:
+                levels = np.arange(np.min(Z), np.max(Z)*1.1, np.max(Z)/nlevels)
             locator=ticker.LinearLocator()
         elif colorScale == 'log':
             norm = LogNorm()
