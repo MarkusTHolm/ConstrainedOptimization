@@ -27,6 +27,9 @@ b = np.array([0, 0, -2, -20, -15])
 xlim = [-5, 5]
 ylim = [-5, 5]
 
+# Solution
+xs = [5/2, 9/2]
+
 fig, ax = Opt.contourPlot(funContour,
                           xlim=xlim, ylim=ylim, figSize=(8, 5))
 
@@ -51,7 +54,7 @@ ax.fill_between(xx, yc4, np.repeat(ylim[1], nxy),
                 alpha=alpha, label='$c_4$', hatch='*') 
 ax.fill_between(xx, yc5, np.repeat(ylim[0], nxy),
                 alpha=alpha, label='$c_5$', hatch='/') 
-ax.plot(3, 0, 'ro', label='$x^\\ast$')
+ax.plot(xs[0], xs[1], 'bo', label='$x^\\ast$', markersize=10)
 
 ax.set_xlim(xlim)
 ax.set_ylim(xlim)
