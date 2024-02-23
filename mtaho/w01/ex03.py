@@ -15,7 +15,6 @@ from mtaho.src.BasicOpt import Opt
 workDir = f"{projectDir}/mtaho/w01"
 
 
-
 # 3) Analytical gradient and Hessian function
 def funEx3(x):
     d2c = np.zeros((2, 2, 2))

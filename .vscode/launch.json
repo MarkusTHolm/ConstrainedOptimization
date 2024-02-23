@@ -8,8 +8,7 @@
             "name": "Python: Current File",
             "type": "debugpy",
             "request": "launch",
-            "program": "/home/mtaho/Code/Courses/ConstrainedOptimization/mtaho/w03/ex01.py",
-            // "program": "/home/mtaho/Code/Courses/ConstrainedOptimization/mtaho/w01/ex03.py",
+            "program": "/home/mtaho/Code/Courses/ConstrainedOptimization/mtaho/w04/ex03.py",
             "console": "integratedTerminal",
             "justMyCode": true
         }

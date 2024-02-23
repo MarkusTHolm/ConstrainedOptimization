@@ -5,7 +5,7 @@ import sys
 
 # project_dir = r"C:\Users\marku\OneDrive - Danmarks Tekniske Universitet"+\
 #               r"\PhD\08_Courses\ConstrainedOptimization\Code"
-projectDir = "/home/mtaho/OneDrive/PhD/08_Courses/ConstrainedOptimization/Code"
+projectDir = "/home/mtaho/Code/Courses/ConstrainedOptimization"
 sys.path.append(os.path.realpath(f"{projectDir}"))
 
 from mtaho.plot_settings import define_plot_settings
