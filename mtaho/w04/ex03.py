@@ -33,7 +33,7 @@ c = cvxopt.matrix([-2., -1.])
 G = -cvxopt.matrix([[1., 0.],
                     [0., 1.],
                     [-1., -1.]]).T
-h = cvxopt.matrix([0., 0., 4.])
+h = -cvxopt.matrix([0., 0., -4.])
 
 ## Documentation
 # minimize    c'*x
