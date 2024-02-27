@@ -111,7 +111,7 @@ print("lam_error = \n",
 
 types = ['LU', 'LDL', 'NullSpace',
          'RangeSpace', 'LUSparse']# 'LDLSparse']
-NArray = np.arange(100, 1000, 100)
+NArray = np.arange(100, 2000, 100)
 times = np.zeros((len(NArray), len(types)))
 outPath = f"{workDir}/timings_solvers.csv"
 
