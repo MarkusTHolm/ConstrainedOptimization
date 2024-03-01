@@ -2,6 +2,10 @@ import numpy as np
 import scipy
 import cvxopt
 import cvxopt.cholmod
+import sksparse
+import sksparse.cholmod
+from sksparse.cholmod import cholesky
+import torch
 
 class Solvers:
     def __init__(self) -> None:
@@ -41,9 +45,9 @@ class Solvers:
         n = np.shape(H)[0]
         m = np.shape(A)[1]
         if not sparse:
-            K = np.zeros((n + m, n + m))
+            K = np.zeros((n + m, n + m), dtype=np.float64)
         else:
-            K = scipy.sparse.lil_matrix((n + m, n + m))
+            K = scipy.sparse.lil_matrix((n + m, n + m), dtype=np.float64)
         r = np.zeros((n + m, 1))
         # Build KKT matrix and right-hand side vector
         K[0:n, 0:n] = H
@@ -57,11 +61,14 @@ class Solvers:
     def EqualityQPSolverLU(K, r, m, sparse=False):
         """ Solve system Ku = r using LU factorization """ 
         n = np.shape(K)[0] - m
-        # Solve system using LDL factorization: 
-        # u = np.linalg.solve(K, r)
         if not sparse:
+                # Method 1
             lu, piv = scipy.linalg.lu_factor(K)
             u = scipy.linalg.lu_solve((lu, piv), r)
+                # Method 2
+            # L, U = scipy.linalg.lu(K, permute_l=True)
+            # v = scipy.linalg.solve(L, r, lower=True)                # Solve:   PLv = r
+            # u = scipy.linalg.solve_triangular(U, v, lower=False)    # Solve:   Uu = v
         else:
             Kfact = scipy.sparse.linalg.splu(K.tocsc())
             u = Kfact.solve(r)    
@@ -70,38 +77,26 @@ class Solvers:
         lam = u[n:n+m]
         return x, lam
 
-    @staticmethod
-    def EqualityQPSolverLDL(K, r, m, sparse=False):
+    @classmethod
+    def EqualityQPSolverLDL(self, K, r, m, sparse=False):
         """ Solve system Ku = r using LDL factorization """ 
         n = np.shape(K)[0] - m
         # Factorization:  PKP' = LDL' (Px = x(p))
         if not sparse:
+                # Slightly optimized implementation
             L, D, p = scipy.linalg.ldl(K, lower=True)           
-            w = np.linalg.solve(L, r)      # Solve:   Lw = r
-            v = np.linalg.solve(D, w)      # Solve:   Dv = w
-            u = np.linalg.solve(L.T, v)    # Solve:   L'u = y
+            d = np.diagonal(D)
+            z = scipy.linalg.solve_triangular(L, r, lower=True)      # Solve:   Lz = r
+            v = (z.T/d).T                                            # Compute: v = z/d
+            u = scipy.linalg.solve_triangular(L.T, v, lower=False)   # Solve:   L'u = v
+
+                # Naive implementation
+            # w = scipy.linalg.solve(L, r, lower=True)      # Solve:   Lw = r
+            # v = scipy.linalg.solve(D, w)                  # Solve:   Dv = w
+            # u = scipy.linalg.solve(L.T, v, lower=False)   # Solve:   L'u = v
         else:
-            # L, D, p = scipy.linalg.ldl(K, lower=True)           
-            # w = np.linalg.solve(L, r)      # Solve:   Lw = r
-            # v = np.linalg.solve(D, w)      # Solve:   Dv = w
-            # u = np.linalg.solve(L.T, v)    # Solve:   L'u = y
-
-            K = K.tocoo()
-            K = cvxopt.spmatrix(K.data, K.row.astype(np.int64),
-                                        K.col.astype(np.int64))
-            # B = cvxopt.matrix(r)
-            # cvxopt.cholmod.numeric(K, F)
-            # cvxopt.cholmod.spsolve(K, B, sys=1)
-            # u = np.array(B)[:, 0]
-            A = K
-            B = cvxopt.matrix(r)
-        
-            # X = cvxopt.cholmod.linsolve(A, B)
-
-            F = cvxopt.cholmod.symbolic(A)
-            cvxopt.cholmod.numeric(A, F)
-            cvxopt.cholmod.solve(F, B, sys=1)
-
+            Kfact = sksparse.cholmod.cholesky(K.tocsc())
+            u = Kfact.solve_A(r)
 
         # Map solution to design variables and Lagrange multipliers
         x = u[0:n]
@@ -141,3 +136,4 @@ class Solvers:
         # 5) Solve for design variables
         x = scipy.linalg.cho_solve((c, L), A @ lam - g)
         return x, lam
+    
