@@ -137,4 +137,99 @@ class Solvers:
         x = scipy.linalg.cho_solve((c, L), A @ lam - g)
         return x, lam
     
+    @classmethod
+    def InequalityQPSolverPrimal(self, H, g, A, b, x0, W):
+
+        # Settings
+        maxiter = 10       # Maximum no. of iterations
+        numtol = 1e-6       # Numerical tolerance for checks
+
+        # Initialize
+        n = np.shape(x0)[0]
+        m = np.shape(A)[1]
+        lams = np.zeros((m, 1))
+        I = np.arange(m)
+        xkStore = np.zeros((n, maxiter))
+        WStore = np.zeros((m, maxiter))
+        sol = {}
+        sol["succes"] = 0
+
+        # Set initial values
+        xk = x0
+        sol["x0"] = x0
+
+        for k in range(maxiter):
+
+            # Store values
+            xkStore[:, k:k+1] = xk
+            WStore[:, k] = np.isin(I, W)
+
+            # Define system from the working set W
+            Aw = A[:, W]
+            zerow = np.zeros((len(W), 1))
+
+            # Solve the equality constrained QP for the search direction pk
+            gk = H @ xk + g
+            pk, lamk = Solvers.solveEqualityQP(H, gk, Aw, zerow, 'LDL')    
+
+            print(f"Iteration: k = {k}")
+            print(f"xk = \n {xk}")
+            print(f"pk = \n {pk}")
+            print(f"lamk = \n {lamk}")
+            print(f"W = \n {W}")
+
+            if np.isclose(np.linalg.norm(pk), 0):
+            
+                if np.all(lamk >= numtol):           
+                    # The optimal solution has been founds
+                    xs = xk            
+                    lams[W] = lamk
+                    print(f"Solution found after {k} iterations: x = \n {xs}")
+                    sol["succes"] = 1
+                    # Store values
+                    xkStore[:, k:k+1] = xk
+                    WStore[:, k] = np.isin(I, W)
+                    break
+                else:
+                    # Remove the most negative constraint from the working set
+                    j = np.argmin(lamk)
+                    W = np.setdiff1d(W, W[j])
+                    # xk = xk    
+                        
+            else:    
+                # Compute the distance to the nearest inactive constraint in the 
+                # search direction pk
+
+                # Extract system which is not contained in the working set
+                nW = np.setdiff1d(I, W)             
+                Anw = A[:, nW]
+               
+                # Find blocking constraints
+                blockCrit = Anw.T @ pk
+                blockCrit = blockCrit.flatten() 
+                blockCrit < 0
+                iblock = nW[blockCrit < -numtol]
+
+                # Find step length        
+                alphas = (b[iblock] - Anw[:, iblock].T @ xk)/( Anw[:, iblock].T @ pk )
+                alpha = np.minimum(1, alphas)
+                j = np.argmin(alpha)
+                alphak = alpha[j]
+
+                if alphak < 1:
+                    xk = xk + alphak*pk
+                    W = np.append(W, j)
+                    W.sort()
+                else:
+                    xk = xk + pk
+
+            sol["iter"] = k
+            sol["xiter"] = xkStore[:, 0:k+2]
+            sol["Witer"] = WStore[:, 0:k+2]
+            if sol["succes"] == 0:
+                print("Solution could not be found")       
+
+
+        return sol
+    
 
