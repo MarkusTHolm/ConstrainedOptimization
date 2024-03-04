@@ -3,6 +3,7 @@ import numpy as np
 import os
 import sys
 import cvxpy as cp
+import cvxopt 
 import scipy
 from scipy.optimize import minimize, Bounds
 from scipy.optimize import LinearConstraint, NonlinearConstraint
@@ -24,6 +25,10 @@ def funContour(X, Y):
     tmp2 = Y - 2.5
     f = tmp1**2 + tmp2**2
     return f
+
+## Problem
+# min_x : 0.5*x'Hx + g'x
+# s.t.  : A'x >= b
 
 x0 = np.array([2, 0])
 
@@ -178,6 +183,42 @@ print(f"lam = \n {lam}")
 x5 = x4
 xs = x5
 
+#### 2.8) Solve LP feasibility subproblem using linprog
+
+print("------------- LP feasibility problem")
+
+
+# min_x : c'x
+# s.t.  : A_ub x <= b_ub
+#       : A_eq x <= b_eq
+#       : l <= x <= u
+
+xtilde = np.array([[4, 4]]).T
+
+e = np.ones((5, 1))
+z = np.maximum(b - At@xtilde, 0)
+
+c = e.T @ z
+
+res = scipy.optimize.linprog(c, A_ub=-At, b_ub=b)
+
+# xtilde = cvxopt.matrix([4., 0.])
+
+# c = cvxopt.matrix([1., 1., 1., 1., 1.])
+# G = -cvxopt.matrix(A.T)
+# h = -cvxopt.matrix(b)
+
+# ## Documentation
+# # minimize    c'*x
+# # subject to  G*x <= h
+# sol = cvxopt.solvers.lp(c, G, h)
+
+# xs = sol['x']
+
+# print(sol['x'])
+
+print("---------------------------------------")
+
 ### Contour plot
 xlim = [-1, 5]
 ylim = [-1, 5]
@@ -193,8 +234,8 @@ ax.plot(x1[0], x1[1], 'rs', label='$x^1$', markersize=ms*1.2)
 ax.plot(x2[0], x2[1], 'go', label='$x^2$', markersize=ms)
 ax.plot(x3[0], x3[1], 'bo', label='$x^3$', markersize=ms)
 ax.plot(x4[0], x4[1], 'mo', label='$x^4$', markersize=ms)
-ax.plot(xs[0], xs[1], 'o', color='tab:orange', label=r'$x^\ast$',
-         markersize=ms*2, markerfacecolor=None)
+ax.plot(xs[0], xs[1], 's', color='tab:orange', label=r'$x^\ast$',
+         markersize=ms*1.5, markerfacecolor='none')
 # ax.plot(x2[0], x2[1], 'ro', label='$x^1$', markersize=ms)
 # Draw constraints
 xc = np.linspace(xlim[0], xlim[1])
