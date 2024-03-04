@@ -137,3 +137,4 @@ class Solvers:
         x = scipy.linalg.cho_solve((c, L), A @ lam - g)
         return x, lam
     
+

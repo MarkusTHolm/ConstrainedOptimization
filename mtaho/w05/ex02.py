@@ -37,14 +37,14 @@ H = np.array(([[2, 0],
 
 g = np.array([[-2, -5]]).T
 
-At = np.array(([[1  ,-2],
-                [-1 ,-2],
-                [-1 ,2],
-                [1  ,0],
-                [0  ,1]])) 
+At = np.array(([[1.0  ,-2.0],
+                [-1.0 ,-2.0],
+                [-1.0 ,2.0],
+                [1.0  ,0.0],
+                [0.0  ,1.0]])) 
 A = At.T
 
-b = - np.array([[2, 6, 2, 0, 0]]).T
+b = - np.array([[2.0, 6.0, 2.0, 0.0, 0.0]]).T
 
 ### Manual active set algorithm:
 
@@ -187,35 +187,38 @@ xs = x5
 
 print("------------- LP feasibility problem")
 
+nx = 2
+nz = 5
+n = nx + nz
+m = 5 + nz
 
-# min_x : c'x
-# s.t.  : A_ub x <= b_ub
-#       : A_eq x <= b_eq
-#       : l <= x <= u
+gamma = 1.0
 
-xtilde = np.array([[4, 4]]).T
+## Documentation
+# minimize    c'*x
+# subject to  G*x <= h
 
-e = np.ones((5, 1))
-z = np.maximum(b - At@xtilde, 0)
+xtilde = cvxopt.matrix(0.0, (n, 1))
+xtilde[0:nx] = cvxopt.matrix([4., 4.])
 
-c = e.T @ z
+c = cvxopt.matrix(0.0, (n, 1))
+c[nx:n] = 1.0
 
-res = scipy.optimize.linprog(c, A_ub=-At, b_ub=b)
+G = cvxopt.matrix(0.0, (m, n))
+G[:nz, 0:nx] = -cvxopt.matrix(At)
+Gzx = G[:nz, nx:]
+Gzx[::nz+1] = -gamma
+G[:nz, nx:] = Gzx
+Gzz = G[nz:, nx:]
+Gzz[::nz+1] = -1.0
+G[nz:, nx:] = Gzz
 
-# xtilde = cvxopt.matrix([4., 0.])
+h = cvxopt.matrix(0.0, (m, 1))
+h[0:nz] = -cvxopt.matrix(b)
 
-# c = cvxopt.matrix([1., 1., 1., 1., 1.])
-# G = -cvxopt.matrix(A.T)
-# h = -cvxopt.matrix(b)
-
-# ## Documentation
-# # minimize    c'*x
-# # subject to  G*x <= h
-# sol = cvxopt.solvers.lp(c, G, h)
-
-# xs = sol['x']
-
-# print(sol['x'])
+sol = cvxopt.solvers.lp(c, G, h)
+x0s = sol['x']
+print(sol['x'])
 
 print("---------------------------------------")
 
@@ -236,6 +239,10 @@ ax.plot(x3[0], x3[1], 'bo', label='$x^3$', markersize=ms)
 ax.plot(x4[0], x4[1], 'mo', label='$x^4$', markersize=ms)
 ax.plot(xs[0], xs[1], 's', color='tab:orange', label=r'$x^\ast$',
          markersize=ms*1.5, markerfacecolor='none')
+ax.plot(xtilde[0], xtilde[1], '^', color='m', label=r'$\Tilde{x}$',
+         markersize=ms*1.5)
+ax.plot(x0s[0], x0s[1], '^', label=r'$x_0^\ast$',
+         markersize=ms*1.5)
 # ax.plot(x2[0], x2[1], 'ro', label='$x^1$', markersize=ms)
 # Draw constraints
 xc = np.linspace(xlim[0], xlim[1])
