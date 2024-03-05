@@ -8,10 +8,9 @@ import cvxopt
 import scipy
 from scipy.optimize import minimize, Bounds
 from scipy.optimize import LinearConstraint, NonlinearConstraint
-# import cyipopt
-# from cyipopt import minimize_ipopt
 
-projectDir = "/home/mtaho/Code/Courses/ConstrainedOptimization"
+# projectDir = "/home/mtaho/Code/Courses/ConstrainedOptimization"
+projectDir = "C:/Users/marku/Programming/ConstrainedOptimization"
 sys.path.append(os.path.realpath(f"{projectDir}"))
 
 from mtaho.plot_settings import define_plot_settings
@@ -27,9 +26,24 @@ def funContour(X, Y):
     f = tmp1**2 + tmp2**2
     return f
 
-## Problem
+### 2.10.1) Penalty method #TODO: NOT FINISHED
+
+# Original problem:
 # min_x : 0.5*x'Hx + g'x
 # s.t.  : A'x >= b
+
+# Penalty method
+# min_(x,eta) : 0.5*x'Hx + g'x + M*eta
+#       s.t.  :  (ai'x - bi) <= eta,  i = E
+#             : -(ai'x - bi) <= eta,  i = E
+#             :    bi - ai'x <= eta,  i = I
+#             :            0 <= eta
+
+# Penalty method (without equality constraints)
+# min_(x,eta) : 0.5*x'Hx + g'x + M*eta
+#             :    bi - ai'x <= eta,  i = I
+#             :            0 <= eta
+M = 10
 
 H = np.array(([[2, 0],
                [0, 2]]))
@@ -44,23 +58,8 @@ b = - np.array([[2.0, 6.0, 2.0, 0.0, 0.0]]).T
 
 ### Primal active set algorithm for convex QPs:
 
-## Correct steps (Nocedal & Wright):
-    
-# k=0: xk = [2, 0]'  , pk = [0, 0]'     , lamk = [-2, -1]', W = {2, 4}
-
-# k=1: xk = [2, 0]'  , pk = [-1, 0]'    , lamk = [-5]'    , W = {4}
-    
-# k=2: xk = [1, 0]'  , pk = [0, 0]'     , lamk = [-5]'    , W = {4}    
-    
-# k=3: xk = [1, 0]'  , pk = [0, 2.5]'   , lamk = []'      , W = {Ø}    
-    
-# k=4: xk = [1, 1.5]', pk = [0.4, 0.2]' , lamk = [..]'    , W = {1}    
-    
-# k=5: xk = [1.4, 1.7]', pk = [0, 0]'   , lamk = [0.8]'    , W = {1}    
-
-
 ## Test method
-x0 = np.array([[2, 0]]).T
+x0 = np.array([[4, 0.5]]).T
 W = [2, 4]
 sol = Solvers.InequalityQPSolverPrimal(H, g, A, b, x0, W)
 
@@ -114,4 +113,4 @@ ax.set_ylim(xlim)
 ax.legend(bbox_to_anchor=(-0.16, 1))
 ax.set_aspect('equal')
 fig.tight_layout()
-fig.savefig(f'{workDir}/ex029.png')
+fig.savefig(f'{workDir}/ex0210.png')

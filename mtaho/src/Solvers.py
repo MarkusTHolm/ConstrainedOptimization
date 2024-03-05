@@ -2,10 +2,10 @@ import numpy as np
 import scipy
 import cvxopt
 import cvxopt.cholmod
-import sksparse
-import sksparse.cholmod
-from sksparse.cholmod import cholesky
-import torch
+# import sksparse
+# import sksparse.cholmod
+# from sksparse.cholmod import cholesky
+# import torch
 
 class Solvers:
     def __init__(self) -> None:
@@ -83,13 +83,12 @@ class Solvers:
         n = np.shape(K)[0] - m
         # Factorization:  PKP' = LDL' (Px = x(p))
         if not sparse:
-                # Slightly optimized implementation
+                # Optimized implementation
             L, D, p = scipy.linalg.ldl(K, lower=True)           
             d = np.diagonal(D)
             z = scipy.linalg.solve_triangular(L, r, lower=True)      # Solve:   Lz = r
             v = (z.T/d).T                                            # Compute: v = z/d
             u = scipy.linalg.solve_triangular(L.T, v, lower=False)   # Solve:   L'u = v
-
                 # Naive implementation
             # w = scipy.linalg.solve(L, r, lower=True)      # Solve:   Lw = r
             # v = scipy.linalg.solve(D, w)                  # Solve:   Dv = w
@@ -159,27 +158,21 @@ class Solvers:
         sol["x0"] = x0
 
         for k in range(maxiter):
-
             # Store values
             xkStore[:, k:k+1] = xk
             WStore[:, k] = np.isin(I, W)
-
             # Define system from the working set W
             Aw = A[:, W]
             zerow = np.zeros((len(W), 1))
-
             # Solve the equality constrained QP for the search direction pk
             gk = H @ xk + g
             pk, lamk = Solvers.solveEqualityQP(H, gk, Aw, zerow, 'LDL')    
-
-            print(f"Iteration: k = {k}")
-            print(f"xk = \n {xk}")
-            print(f"pk = \n {pk}")
-            print(f"lamk = \n {lamk}")
-            print(f"W = \n {W}")
-
-            if np.isclose(np.linalg.norm(pk), 0):
-            
+            # print(f"Iteration: k = {k}")
+            # print(f"xk = \n {xk}")
+            # print(f"pk = \n {pk}")
+            # print(f"lamk = \n {lamk}")
+            # print(f"W = \n {W}")
+            if np.isclose(np.linalg.norm(pk), 0):            
                 if np.all(lamk >= numtol):           
                     # The optimal solution has been founds
                     xs = xk            
@@ -194,41 +187,37 @@ class Solvers:
                     # Remove the most negative constraint from the working set
                     j = np.argmin(lamk)
                     W = np.setdiff1d(W, W[j])
-                    # xk = xk    
-                        
+                    # xk = xk                           
             else:    
                 # Compute the distance to the nearest inactive constraint in the 
                 # search direction pk
 
                 # Extract system which is not contained in the working set
                 nW = np.setdiff1d(I, W)             
-                Anw = A[:, nW]
-               
+                Anw = A[:, nW]               
                 # Find blocking constraints
                 blockCrit = Anw.T @ pk
                 blockCrit = blockCrit.flatten() 
                 blockCrit < 0
                 iblock = nW[blockCrit < -numtol]
-
                 # Find step length        
                 alphas = (b[iblock] - Anw[:, iblock].T @ xk)/( Anw[:, iblock].T @ pk )
                 alpha = np.minimum(1, alphas)
                 j = np.argmin(alpha)
                 alphak = alpha[j]
-
-                if alphak < 1:
+                if alphak < 1:      # Take reduced step and add blocking constraint
                     xk = xk + alphak*pk
                     W = np.append(W, j)
                     W.sort()
-                else:
+                else:               # Take full step
                     xk = xk + pk
 
-            sol["iter"] = k
-            sol["xiter"] = xkStore[:, 0:k+2]
-            sol["Witer"] = WStore[:, 0:k+2]
-            if sol["succes"] == 0:
-                print("Solution could not be found")       
-
+        # Append results
+        sol["iter"] = k
+        sol["xiter"] = xkStore[:, 0:k+1]
+        sol["Witer"] = WStore[:, 0:k+1]
+        if sol["succes"] == 0:
+            print("Solution could not be found")     
 
         return sol
     
