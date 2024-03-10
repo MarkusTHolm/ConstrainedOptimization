@@ -7,8 +7,6 @@ import cvxopt
 import scipy
 from scipy.optimize import minimize, Bounds
 from scipy.optimize import LinearConstraint, NonlinearConstraint
-# import cyipopt
-# from cyipopt import minimize_ipopt
 
 projectDir = "/home/mtaho/Code/Courses/ConstrainedOptimization"
 projectDir = "C:/Users/marku/Programming/ConstrainedOptimization"
@@ -19,8 +17,7 @@ from mtaho.src.FiniteDifference import FD
 from mtaho.src.BasicOpt import Opt
 from mtaho.src.Solvers import Solvers
 
-workDir = f"{projectDir}/mtaho/w05"
-
+workDir = f"{projectDir}/mtaho/w06"
 
 ## Markowitz Portfolio Optimization
 
@@ -30,7 +27,6 @@ workDir = f"{projectDir}/mtaho/w05"
 # s.t.  :      mu'x = R
 #       : np.sum(x) = 1
 #       :        x >= 0       
-
 
 H = np.array([[2.30, 0.93, 0.62, 0.74, -0.23, 0.00],
               [0.93, 1.40, 0.22, 0.56, 0.26, 0.00],
@@ -48,32 +44,32 @@ mu = np.array([15.10, 12.50, 14.70, 9.02, 17.68, 2.0])
 
 R = 15.0
 n = len(mu)
+x0 = np.ones((n, 1))*0 #(1/n)
 
-P = cvxopt.matrix(H)
-q = cvxopt.matrix(0.0, (n, 1))
+H = H.copy()
+g = np.zeros((n, 1))
 
-G = cvxopt.matrix(0.0, (n,n))
-G[::n+1] = -1.0
+A = np.zeros((n, 2))
+A[0:n, 0] = 1.0
+A[0:n, 1] = mu
 
-h = cvxopt.matrix(0.0, (n,1))
+b = np.zeros((2, 1))
+b[0] = 1.0
+b[1] = R
 
-A = cvxopt.matrix(0.0, (2, n))
-A[0, 0:n] = cvxopt.matrix(1)
-A[1, 0:n] = cvxopt.matrix(mu).T
+C = np.zeros((n, n))
+np.fill_diagonal(C, 1.0)
 
-b = cvxopt.matrix(0.0, (2, 1))
-b[0] = cvxopt.matrix(1.0)
-b[1] = cvxopt.matrix(R)
+d = np.zeros((n,1))
 
-portfolio = cvxopt.solvers.qp(P, q, G, h, A, b)
+portfolio = Solvers.QPSolverInteriorPoint(H, g, C, d, A, b, x0=x0, loud=True)
 
 xs_15 = portfolio['x']
 risk_15 = xs_15.T @ H @ xs_15
 
-
 print(f"Optimal portfolio for R={R} is: x = \n{portfolio['x']}")
 
-# 4) Efficient frontier and optimal portfolio as a function of return
+# # 4) Efficient frontier and optimal portfolio as a function of return
 
 N = 100
 returns = np.linspace(np.min(mu), np.max(mu), N)
@@ -83,8 +79,9 @@ portfolios = np.zeros((n, N))
 
 for i, R in enumerate(returns):
     b[1] = cvxopt.matrix(R)
-    portfolio = cvxopt.solvers.qp(P, q, G, h, A, b)
-    xs = portfolio['s']
+    # portfolio = cvxopt.solvers.qp(P, q, G, h, A, b)
+    portfolio = Solvers.QPSolverInteriorPoint(H, g, C, d, A, b, x0=x0)
+    xs = portfolio['x']
     risks[i] = xs.T @ H @ xs
     portfolios[:, i:i+1] = xs
 
@@ -116,4 +113,4 @@ for i in range(rows):
         k += 1 
 
 plt.tight_layout()
-plt.savefig(f'{workDir}/portfolios32.png')
+plt.savefig(f'{workDir}/portfolios.png')

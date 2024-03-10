@@ -226,7 +226,8 @@ class Solvers:
         return sol
     
     @classmethod
-    def QPSolverInteriorPoint(self, H, g, C, d, A=None, b=None, x0=None):
+    def QPSolverInteriorPoint(self, H, g, C, d, A=None, b=None, x0=None,
+                              loud=False):
         """ 
         Solve a convex QP using the primal-dual interior point
         algorithm 
@@ -275,10 +276,11 @@ class Solvers:
         def factorize(H, C, z, s):  
             HBar = H + C@((z/s)*C.T)
             if me > 0:
-                # TODO: Fix this case
-                pass
-                # K, rhs, m = self.EqualityQPKKT(HBar, rLBar, A, rA)
-                # Kfact = sp.linalg.splu(sp.csc_matrix(K))        
+                K = scipy.sparse.lil_matrix((n + me, n + me), dtype=np.float64)
+                K[0:n, 0:n] = HBar
+                K[n:n+me, 0:n] = -A.T
+                K[0:n, n:n+me] = -A
+                Kfact = sp.linalg.splu(sp.csc_matrix(K))  
             else:
                 Kfact = sp.linalg.splu(sp.csc_matrix(HBar))                 
             return Kfact        
@@ -349,16 +351,18 @@ class Solvers:
                 sol["succes"] = 1
                 break
             # Print and store results
-            print(f"k = {k}: "
-                  f"rL = {np.linalg.norm(rL, np.inf):1.1e}, "
-                  f"rA = {np.linalg.norm(rA, np.inf):1.1e}, "
-                  f"rC = {np.linalg.norm(rC, np.inf):1.1e}, "
-                  f"mu = {np.linalg.norm(mu, np.inf):1.1e}")
+            if loud:
+                print(f"k = {k}: "
+                    f"rL = {np.linalg.norm(rL, np.inf):1.1e}, "
+                    f"rA = {np.linalg.norm(rA, np.inf):1.1e}, "
+                    f"rC = {np.linalg.norm(rC, np.inf):1.1e}, "
+                    f"mu = {np.linalg.norm(mu, np.inf):1.1e}")
             xStore[:, k:k+1] = x
         
         # Append results
         sol["iter"] = k
         sol["xiter"] = xStore[:, 0:k]
+        sol["x"] = x
         if sol["succes"] == 0:
             print("Solution could not be found")    
 
