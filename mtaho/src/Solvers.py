@@ -1,5 +1,6 @@
 import numpy as np
 import scipy
+import scipy.sparse as sp
 import cvxopt
 import cvxopt.cholmod
 # import sksparse
@@ -138,6 +139,9 @@ class Solvers:
     
     @classmethod
     def InequalityQPSolverPrimal(self, H, g, A, b, x0, W):
+        """ Solve an inequality constrained convex QP using the 
+        primal active-set method for a feasible starting point x0,
+        and working set W """
 
         # Settings
         maxiter = 10       # Maximum no. of iterations
@@ -221,4 +225,141 @@ class Solvers:
 
         return sol
     
+    @classmethod
+    def QPSolverInteriorPoint(self, H, g, C, d, A=None, b=None, x0=None):
+        """ 
+        Solve a convex QP using the primal-dual interior point
+        algorithm 
+        Problem:
+            min_x   : 0.5*x'Hx + g'x
+            s.t.    : A'x = b
+                    : C'x >= d 
+        """
+        # Settings
+        maxiter = 10       # Maximum no. of iterations
+        tolL = 1e-9        # Lagrangian gradient
+        tolA = 1e-9        # Equality constraint
+        tolC = 1e-9        # Inequality constraint
+        tolmu = 1e-9       # Dual gap
+        eta = 0.995        # Damping parameter for step length 
 
+        # Initialize
+        n = np.shape(x0)[0]
+        if A is not None:
+            me = np.shape(A)[1]
+            yBar = np.zeros((me, 1))
+        else:
+            me = 0
+            A = np.zeros((n, 1))
+            b = np.zeros((1, 1))
+            yBar = np.zeros((1, 1))
+        mi = np.shape(C)[1]
+        xBar = x0.copy()        
+        zBar = np.ones((mi, 1))
+        sBar = np.ones((mi, 1))
+        s = np.ones((mi, 1))
+        z = np.ones((mi, 1))
+        eVec = np.ones((mi, 1))
+        rhs = np.zeros((n+me, 1))
+        sol = {}
+        sol["succes"] = 0
+        xStore = np.zeros((n, maxiter))
+
+        def computeResiduals(H, g, C, d, A, b, x, y, z, s):
+            rL = H@x + g - A@y - C@z
+            rA = b - A.T@x
+            rC = s + d - C.T@x
+            rSZ = s*z
+            return rL, rA, rC, rSZ
+        
+        def factorize(H, C, z, s):  
+            HBar = H + C@((z/s)*C.T)
+            if me > 0:
+                # TODO: Fix this case
+                pass
+                # K, rhs, m = self.EqualityQPKKT(HBar, rLBar, A, rA)
+                # Kfact = sp.linalg.splu(sp.csc_matrix(K))        
+            else:
+                Kfact = sp.linalg.splu(sp.csc_matrix(HBar))                 
+            return Kfact        
+        
+        def searchDirection(Kfact, rL, rA, z, s, C, rC, rSZ):
+            rLBar = rL - (C*(z/s).T)@(rC - rSZ/z)            
+            rhs[0:n] = -rLBar
+            rhs[n:n+me] = -rA
+            u = Kfact.solve(rhs)    
+            dx = u[0:n]
+            if me > 0:
+                dy = u[n:(n+me)]
+            else: 
+                dy = 0.0
+            dz = -(z/s)*C.T@dx + (z/s)*(rC - rSZ/z)
+            ds = -rSZ/z - (s/z)*dz
+            return dx, dy, dz, ds
+        
+        def feasibleStepLength(z, dz, s, ds):
+            # Compute the largest alphaAff that retains a feasible step
+            alpha_z = np.min(np.minimum(1, -z[dz < 0]/dz[dz < 0]))
+            alpha_s = np.min(np.minimum(1, -s[ds < 0]/ds[ds < 0]))
+            alpha = np.min([alpha_z, alpha_s])
+            return alpha
+        
+        # Find a suitable initial point 
+
+        rL, rA, rC, rSZ = computeResiduals(H, g, C, d, A, b,
+                                           xBar, yBar, zBar, sBar)
+        Kfact = factorize(H, C, z, s)
+        dxAff, dyAff, dzAff, dsAff = searchDirection(Kfact, rL, rA, z, s, C, rC, rSZ)
+        x = xBar
+        y = yBar
+        z = np.maximum(1, np.abs(zBar + dzAff))
+        s = np.maximum(1, np.abs(sBar + dsAff))
+
+        # Primal-dual predictor corrector interior point algorithm
+
+        rL, rA, rC, rSZ = computeResiduals(H, g, C, d, A, b,
+                                           x, y, z, s)
+        mu = (z.T@s)/mi
+        for k in range(maxiter):
+            Kfact = factorize(H, C, z, s)
+            # Compute affine direction
+            dxAff, dyAff, dzAff, dsAff = searchDirection(Kfact, rL, rA, z, s, C, rC, rSZ)
+            alphaAff = feasibleStepLength(z, dzAff, s, dsAff)
+            # Compute the duality gap and centering parameter
+            muAff = ((z + alphaAff*dzAff).T@(s + alphaAff*dsAff))/mi
+            sigma = (muAff/mu)**3
+            # Compute affine centering-correction direction
+            rSZBar = rSZ + dsAff*dzAff - sigma*mu*eVec
+            dx, dy, dz, ds = searchDirection(Kfact, rL, rA, z, s, C, rC, rSZBar)
+            alpha = feasibleStepLength(z, dz, s, ds)
+            alphaBar = eta*alpha
+            # Update iteration
+            x += alphaBar*dx
+            y += alphaBar*dy
+            z += alphaBar*dz
+            s += alphaBar*ds
+            rL, rA, rC, rSZ = computeResiduals(H, g, C, d, A, b,
+                                               x, y, z, s)
+            mu = (z.T@s)/mi
+            # Check stopping criteria
+            if (np.linalg.norm(rL, np.inf) < tolL) and \
+               (np.linalg.norm(rA, np.inf) < tolA) and \
+               (np.linalg.norm(rC, np.inf) < tolC) and \
+               (np.linalg.norm(mu, np.inf) < tolmu):
+                sol["succes"] = 1
+                break
+            # Print and store results
+            print(f"k = {k}: "
+                  f"rL = {np.linalg.norm(rL, np.inf):1.1e}, "
+                  f"rA = {np.linalg.norm(rA, np.inf):1.1e}, "
+                  f"rC = {np.linalg.norm(rC, np.inf):1.1e}, "
+                  f"mu = {np.linalg.norm(mu, np.inf):1.1e}")
+            xStore[:, k:k+1] = x
+        
+        # Append results
+        sol["iter"] = k
+        sol["xiter"] = xStore[:, 0:k]
+        if sol["succes"] == 0:
+            print("Solution could not be found")    
+
+        return sol
