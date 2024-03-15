@@ -386,7 +386,13 @@ class Solvers:
         Ns = Is[active]                       # Non-basic set
         Bs = np.setdiff1d(Is, Ns)             # Basic set
 
+        sol = {}
+        sol['succes'] = 0
+        xkStore = np.zeros((n, maxiter))
+
         for k in range(maxiter):
+            # Store values
+            xkStore[:, k:k+1] = x
 
             # Define non-basic and variables
             N = A[:, Ns]
@@ -396,7 +402,7 @@ class Solvers:
             gN = g[Ns]
             gB = g[Bs]
 
-            # Solve for lagrange multiplers for the inequality constraints: B'mu = gB
+            # Solve for lagrange multiplers for the inequality constrsol["succes"] = 1aints: B'mu = gB
             mu = np.linalg.solve(B.T, gB)
             
             # Find lagrange multipliers for the bound constraints
@@ -406,15 +412,23 @@ class Solvers:
                 print(f"--- Iteration {k}: ---"
                   f"\n x=\n{x}, \n Bs={Bs}, \n Ns={Ns}, \n mu=\n{mu}, \n lam=\n{lam}")
 
+            # Find leaving index
             s = np.argmin(lam)
+
+            # Check for solution (all inequality lagrange multipliers non-negative)
             if lam[s] >= 0:
                 print(f"*** Solution found after {k} iterations")
                 if printValues:
                     print(f"x = \n {x}")
+                sol["succes"] = 1
+                sol['x'] = x
                 break
             else:
+                
+                # Find global index that corresponds to index s
+                i_s = Ns[s]         
 
-                i_s = Ns[s]         # Find global index that corresponds to index s
+                # Check for unbounded problem
                 h = np.linalg.solve(B, A[:, i_s:i_s+1])
                 hpos = h > 0
 
@@ -436,14 +450,19 @@ class Solvers:
                     x[Ns] = xN
                     x[Bs] = xB
 
-                    # Update basic and non-basic sets
+                    # Update basic and non-basic sets with leaving and entering indices
                     i_j = Bs[j]
                     Bs = np.union1d(np.setdiff1d(Bs, i_j), i_s)
                     Ns = np.union1d(np.setdiff1d(Ns, i_s), i_j)
 
+        # Append results
+        sol["iter"] = k
+        sol["xiter"] = xkStore[:, 0:k+1]
+        if sol["succes"] == 0:
+            print("Solution could not be found") 
 
-        
-        lamB = 0
+        return sol
+       
 
 
 
