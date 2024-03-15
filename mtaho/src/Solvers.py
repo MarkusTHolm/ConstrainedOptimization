@@ -379,61 +379,69 @@ class Solvers:
         # Initialize
         n = np.shape(x0)[0]
         m = np.shape(A)[0]
-
-        x = x0.copy()
-
+        printValues = n < 10
+        x = x0.copy()                         # Start-iterate
         Is = np.arange(n)                     # Full index set
-        active = np.isclose(x[:,0], 0)
+        active = np.isclose(x[:,0], 0)        # Find non-basic variables
         Ns = Is[active]                       # Non-basic set
         Bs = np.setdiff1d(Is, Ns)             # Basic set
 
-        xN = x[Ns]
-        xB = x[Bs]
-
         for k in range(maxiter):
+
+            # Define non-basic and variables
             N = A[:, Ns]
             B = A[:, Bs]
-
+            xN = x[Ns]
+            xB = x[Bs]     
             gN = g[Ns]
             gB = g[Bs]
 
+            # Solve for lagrange multiplers for the inequality constraints: B'mu = gB
             mu = np.linalg.solve(B.T, gB)
+            
+            # Find lagrange multipliers for the bound constraints
             lam = gN - N.T @ mu
 
-            print(f"--- Iteration {k}: ---"
-                  f"\n Bs={Bs}, \n Ns={Ns}, \n mu=\n{mu}, \n lam=\n{lam}")
+            if printValues:
+                print(f"--- Iteration {k}: ---"
+                  f"\n x=\n{x}, \n Bs={Bs}, \n Ns={Ns}, \n mu=\n{mu}, \n lam=\n{lam}")
 
             s = np.argmin(lam)
             if lam[s] >= 0:
-                print(f"*** Solution found after {k} iterations: \n x = \n {x}")
+                print(f"*** Solution found after {k} iterations")
+                if printValues:
+                    print(f"x = \n {x}")
                 break
             else:
 
-                i_s = Ns[s]
+                i_s = Ns[s]         # Find global index that corresponds to index s
                 h = np.linalg.solve(B, A[:, i_s:i_s+1])
-
                 hpos = h > 0
+
                 if np.sum(hpos) == 0:
                     print(f"Error: Problem is unbounded, i.e. has no solution")
                 else:
-                    
+                    # Find smallest step direction
                     j = np.argmin(xB[hpos]/h[hpos].T)
+                    
+                    # Compute step length
                     alpha = xB[j]/h[j]
-
+                    
+                    # Increment non-basic and basic variables
                     xB -= alpha*h
-                    xB[j] = 0
-
                     xN[:] = 0
                     xN[s] = alpha
+
+                    # Update x
+                    x[Ns] = xN
+                    x[Bs] = xB
 
                     # Update basic and non-basic sets
                     i_j = Bs[j]
                     Bs = np.union1d(np.setdiff1d(Bs, i_j), i_s)
                     Ns = np.union1d(np.setdiff1d(Ns, i_s), i_j)
 
-                    # Update x
-                    x[Ns] = xN
-                    x[Bs] = xB
+
         
         lamB = 0
 
