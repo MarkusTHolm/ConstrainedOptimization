@@ -54,7 +54,7 @@ def randomQP(n, alpha, density, seed):
 # min_x : 0.5*x'Hx + g'x
 # s.t.  : bl <= A'x <= bu
 #       : l  <= u   <= x
-n = 30
+n = 200
 alpha = 0.2
 density = 1
 seed = 100

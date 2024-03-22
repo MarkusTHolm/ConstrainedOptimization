@@ -149,24 +149,26 @@ class Solvers:
                   :  C'x >= d
         """
 
-        # Settings
-        maxiter = 100     # Maximum no. of iterations
-        numtol = 1e-6     # Numerical tolerance for checks
-
         # Initialize
         n = np.shape(x0)[0]
         m = np.shape(A)[1]
         printValues = n < 10
         lams = np.zeros((m, 1))
         I = np.arange(m)
-        xkStore = np.zeros((n, maxiter))
-        WStore = np.zeros((m, maxiter))
-        sol = {}
-        sol["succes"] = 0
+
+        # Settings
+        maxiter = 100*(n+m)    # Maximum no. of iterations
+        numtol = 1e-9          # Numerical tolerance for checks
 
         # Set initial values
         xk = x0
+
+        # Store solution info
+        xkStore = np.zeros((n, maxiter))
+        WStore = np.zeros((m, maxiter))
+        sol = {}
         sol["x0"] = x0
+        sol["succes"] = 0
         
         for k in range(maxiter):
             # Store values
@@ -209,7 +211,7 @@ class Solvers:
                 # Find blocking constraints
                 blockCrit = Anw.T @ pk
                 blockCrit = blockCrit.flatten() 
-                blockMask = blockCrit < 0
+                blockMask = blockCrit < -numtol
                 iblock = nW[blockMask]                
                 # Find step length        
                 cnW = (Anw[:, blockMask].T @ xk + b[iblock])
