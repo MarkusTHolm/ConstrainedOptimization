@@ -158,7 +158,7 @@ class Solvers:
 
         # Settings
         maxiter = 100*(n+m)    # Maximum no. of iterations
-        numtol = 1e-9          # Numerical tolerance for checks
+        numtol = 1e-6          # Numerical tolerance for checks
 
         # Set initial values
         xk = x0
@@ -320,7 +320,7 @@ class Solvers:
             return alpha
         
         # Find a suitable initial point 
-
+        
         rL, rA, rC, rSZ = computeResiduals(H, g, C, d, A, b,
                                            xBar, yBar, zBar, sBar)
         Kfact = factorize(H, C, z, s)
@@ -372,6 +372,78 @@ class Solvers:
                     f"mu = {np.linalg.norm(mu, np.inf):1.1e}")
             xStore[:, k:k+1] = x
         
+        # Append results
+        sol["iter"] = k
+        sol["xiter"] = xStore[:, 0:k]
+        sol["x"] = x
+        if sol["succes"] == 0:
+            print("Solution could not be found")    
+        elif sol["succes"] == 1:
+            print(f"Solution found after {k} iterations")
+
+        return sol
+
+    @classmethod
+    def LPSolverInteriorPoint(self, g, A, b, x0=None):
+        """ 
+        Solve a convex LP in standard form  using the primal-dual
+        interior point algorithm 
+        Problem:
+            min_x   : g'x
+            s.t.    : Ax = b
+                    : x >= 0
+        """
+        # Settings
+        maxiter = 100      # Maximum no. of iterations
+        tolL = 1e-9        # Lagrangian gradient
+        tolA = 1e-9        # Equality constraint
+        tols = 1e-9        # Dual gap
+        eta = 0.995        # Damping parameter for step length 
+
+        # Initialize
+        m, n = np.shape(A)
+        lam = np.ones((n, 1))
+        mu = np.zeros((m, 1))
+        x = x0
+
+        # Store solution info
+        sol = {}
+        sol["succes"] = 0
+        xStore = np.zeros((n, maxiter))
+
+        # Compute residuals
+        rL = g - A.T@mu - lam     # Lagrangian gradient
+        rA = A@x - b              # Equality Constraint
+        rC = x*lam                # Complementarity
+        s = np.sum(rC)/n
+
+        # Converged 
+        converged = (np.linalg.norm(rL, np.inf) < tolL) and \
+                    (np.linalg.norm(rA, np.inf) < tolA) and \
+                    (np.linalg.norm(mu, np.inf) < tols)
+
+        k = 0
+        while not converged and k < maxiter:
+            k += 1
+
+            # Form and factorize Hesian matrix
+            xdivlambda = (x/lam).flatten()
+            H = A@np.diag(xdivlambda)@A.T
+            Hfact = sp.linalg.splu(scipy.sparse.lil_matrix(H).tocsc())
+
+            # Affine step
+            tmp = (x*rL + rC)/lam
+            rhs = -rA + A@tmp
+
+            print("hello")
+
+            # u = Hfact.solve_A(r)
+
+
+
+
+
+
         # Append results
         sol["iter"] = k
         sol["xiter"] = xStore[:, 0:k]
