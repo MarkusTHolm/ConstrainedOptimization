@@ -10,7 +10,7 @@ from scipy.optimize import minimize, Bounds
 from scipy.optimize import LinearConstraint, NonlinearConstraint
 
 projectDir = "/home/mtaho/Code/Courses/ConstrainedOptimization"
-projectDir = "C:/Users/marku/Programming/ConstrainedOptimization"
+# projectDir = "C:/Users/marku/Programming/ConstrainedOptimization"
 sys.path.append(os.path.realpath(f"{projectDir}"))
 
 from mtaho.plot_settings import define_plot_settings

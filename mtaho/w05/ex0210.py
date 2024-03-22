@@ -9,8 +9,8 @@ import scipy
 from scipy.optimize import minimize, Bounds
 from scipy.optimize import LinearConstraint, NonlinearConstraint
 
-# projectDir = "/home/mtaho/Code/Courses/ConstrainedOptimization"
-projectDir = "C:/Users/marku/Programming/ConstrainedOptimization"
+projectDir = "/home/mtaho/Code/Courses/ConstrainedOptimization"
+# projectDir = "C:/Users/marku/Programming/ConstrainedOptimization"
 sys.path.append(os.path.realpath(f"{projectDir}"))
 
 from mtaho.plot_settings import define_plot_settings
@@ -61,7 +61,7 @@ b = - np.array([[2.0, 6.0, 2.0, 0.0, 0.0]]).T
 ## Test method
 x0 = np.array([[4, 0.5]]).T
 W = [2, 4]
-sol = Solvers.InequalityQPSolverPrimal(H, g, A, b, x0, W)
+sol = Solvers.QPSolverActiveSet(H, g, A, b, x0, W)
 
 print(sol)
 

@@ -34,57 +34,38 @@ workDir = f"{projectDir}/mtaho/w06"
 #       : x >= 0
 
 # 
-if 0: # Generate random problem that is well-posed
-    n = 2
-    m = 1
+if 1: # Generate random problem that is well-posed
+    
+    # Settings
+    n = 4
+    m = 2
     seed = 10
-
     np.random.seed(seed)
 
+    # Define random problem
+    A = np.random.randn(m, n)
+    
     x = np.zeros((n, 1))
-    x[0:n, 0:1] = np.abs(np.random.randn(n, 1))
-
-    # s = np.zeros((n+m, 1))
-    # s[n:, 0:1] = np.abs(np.random.randn(m, 1))
+    x[0:m, 0:1] = np.abs(np.random.randn(m, 1))
+    
+    s = np.zeros((n, 1))
+    s[m:n, 0:1] = np.abs(np.random.randn(n-m, 1))
 
     lam = np.random.randn(m, 1)
-    A = np.abs(np.random.randn(m, n))
 
-    g = A.T@lam #+ s
+    g = A.T @ lam + s
     b = A@x
 
-    # Phase 1: Find feasible starting point by solving the modified problem:
-    # min_{x,s,t} : e's + ec'x
-    #       s.t.  : Ax + s - t = b
-    #             : x >= 0
-    #             : s >= 0
-    #             : t >= 0
-
-    if 0:
-        n1 = (n+1)
-        m1 = 2*m
-        e = np.ones((m, 1))
-
-        g1 = np.zeros((n1, 1))
-        g1[n] = 1
-
-        A1 = np.zeros((m1, n1))
-        A1[0:m,  0:n] = A
-        A1[m:m1, 0:n] = -A
-        A1[0:m,  n:n+1] = e
-        A1[m:m1, n:n+1] = e
-
-        b1 = np.zeros((m1, 1))
-        b1[0:m] = b
-        b1[m:m1] = -b
-
-        x01 = np.zeros((n1, 1))
-
-        t = np.max(np.abs(b))
-        x1 = np.zeros((n1, 1))
-        x1[n] = t
-    else:
+    if 1:
         # Solve problem using Slack variables
+        # min_{x,t} : [0]'[x ]
+        #             [1] [t ]
+        #             [0] [s1]
+        #             [0] [s2]
+        #       s.t.  :             [x ] 
+        #               [ A e  -I 0][t ]   [b]
+        #               [-A e  0 -I][s1] = [-b]
+        #                           [s2] 
         n1 = (n+1+2*m)
         m1 = 2*m
         e = np.ones((m, 1))
@@ -120,18 +101,18 @@ if 0: # Generate random problem that is well-posed
 
 else: 
     # Problem from Wikipedia: https://en.wikipedia.org/wiki/Revised_simplex_method
-    g = np.array([[-2, -3, -4, 0, 0]], dtype=np.float64).T
-    A = np.array([[3, 2, 1, 1, 0],
-                  [2, 5, 3, 0, 1]], dtype=np.float64)
-    b = np.array([[10, 15]], dtype=np.float64).T
-    x0 = np.array([[0, 0, 0, 10, 15]], dtype=np.float64).T
+    # g = np.array([[-2, -3, -4, 0, 0]], dtype=np.float64).T
+    # A = np.array([[3, 2, 1, 1, 0],
+    #               [2, 5, 3, 0, 1]], dtype=np.float64)
+    # b = np.array([[10, 15]], dtype=np.float64).T
+    # x0 = np.array([[0, 0, 0, 10, 15]], dtype=np.float64).T
 
     # Problem from Nocedal and Wright
-    # g = np.array([[-3, -2, 0, 0]], dtype=np.float64).T
-    # A = np.array([[1, 1,   1, 0],
-    #               [2, 0.5, 0, 1]], dtype=np.float64)
-    # b = np.array([[5, 8]], dtype=np.float64).T
-    # x0 = np.array([[0, 0, 5, 8]], dtype=np.float64).T
+    g = np.array([[-3, -2, 0, 0]], dtype=np.float64).T
+    A = np.array([[1, 1,   1, 0],
+                  [2, 0.5, 0, 1]], dtype=np.float64)
+    b = np.array([[5, 8]], dtype=np.float64).T
+    x0 = np.array([[0, 0, 5, 8]], dtype=np.float64).T
 
 ## Test method
 
@@ -139,24 +120,3 @@ sol = Solvers.LPSolverRevisedSimplex(g, A, b, x0)
 xs = sol['x']
 
 print(f"xs = \n{xs}")
-print("hello")
-
-
-# n1 = (n+2*m)
-    # m1 = 3*m
-
-    # x1 = np.zeros((n1, 1))
-    # x1[0:n] = x
-
-    # A1 = np.zeros((m1, n1))
-    # A1[0:m, 0:n] = A
-    # A1[m:2*m, n:n+m] = np.identity(m)
-    # A1[2*m:m1, n+m:] = -np.identity(m)
-
-    # b1 = np.zeros((m1, 1))
-    # b1[0:m] = b
-
-    # g1 = np.zeros((n1, 1))
-    # g1[n:] = 1
-
-    # x01 = np.zeros((n1, 1))

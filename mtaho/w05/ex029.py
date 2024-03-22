@@ -40,7 +40,7 @@ At = np.array(([[1.0  ,-2.0],
                 [1.0  ,0.0],
                 [0.0  ,1.0]])) 
 A = At.T
-b = - np.array([[2.0, 6.0, 2.0, 0.0, 0.0]]).T
+b = np.array([[2.0, 6.0, 2.0, 0.0, 0.0]]).T
 
 ### Primal active set algorithm for convex QPs:
 
@@ -52,17 +52,17 @@ b = - np.array([[2.0, 6.0, 2.0, 0.0, 0.0]]).T
     
 # k=2: xk = [1, 0]'  , pk = [0, 0]'     , lamk = [-5]'    , W = {4}    
     
-# k=3: xk = [1, 0]'  , pk = [0, 2.5]'   , lamk = []'      , W = {Ø}    
+# k=3: xk = [1, 0]'  , pk = [0, 2.5]'   , lamk = []'      , W = Ø    
     
-# k=4: xk = [1, 1.5]', pk = [0.4, 0.2]' , lamk = [..]'    , W = {1}    
+# k=4: xk = [1, 1.5]', pk = [0.4, 0.2]' , lamk = [..]'    , W = {0}    
     
-# k=5: xk = [1.4, 1.7]', pk = [0, 0]'   , lamk = [0.8]'    , W = {1}    
+# k=5: xk = [1.4, 1.7]', pk = [0, 0]'   , lamk = [0.8]'   , W = {0}    
 
 
 ## Test method
 x0 = np.array([[2, 0]]).T
 W = [2, 4]
-sol = Solvers.InequalityQPSolverPrimal(H, g, A, b, x0, W)
+sol = Solvers.QPSolverInequalityActiveSet(H, g, A, b, x0, W=W)
 
 print(sol)
 

@@ -3,9 +3,9 @@ import scipy
 import scipy.sparse as sp
 import cvxopt
 import cvxopt.cholmod
-# import sksparse
-# import sksparse.cholmod
-# from sksparse.cholmod import cholesky
+import sksparse
+import sksparse.cholmod
+from sksparse.cholmod import cholesky
 # import torch
 
 class Solvers:
@@ -138,18 +138,25 @@ class Solvers:
         return x, lam
     
     @classmethod
-    def InequalityQPSolverPrimal(self, H, g, A, b, x0, W):
+    def QPSolverInequalityActiveSet(self, H, g, A, b, x0, W=[]):
         """ Solve an inequality constrained convex QP using the 
         primal active-set method for a feasible starting point x0,
-        and working set W """
+        (and optionally corresponding active set).
+        
+        Problem:
+            min_x : 0.5*x'Hx + g'x
+            s.t.  :  A'x =  b
+                  :  C'x >= d
+        """
 
         # Settings
-        maxiter = 10       # Maximum no. of iterations
-        numtol = 1e-6       # Numerical tolerance for checks
+        maxiter = 100     # Maximum no. of iterations
+        numtol = 1e-6     # Numerical tolerance for checks
 
         # Initialize
         n = np.shape(x0)[0]
         m = np.shape(A)[1]
+        printValues = n < 10
         lams = np.zeros((m, 1))
         I = np.arange(m)
         xkStore = np.zeros((n, maxiter))
@@ -160,7 +167,7 @@ class Solvers:
         # Set initial values
         xk = x0
         sol["x0"] = x0
-
+        
         for k in range(maxiter):
             # Store values
             xkStore[:, k:k+1] = xk
@@ -170,18 +177,17 @@ class Solvers:
             zerow = np.zeros((len(W), 1))
             # Solve the equality constrained QP for the search direction pk
             gk = H @ xk + g
-            pk, lamk = Solvers.solveEqualityQP(H, gk, Aw, zerow, 'LDL')    
-            # print(f"Iteration: k = {k}")
-            # print(f"xk = \n {xk}")
-            # print(f"pk = \n {pk}")
-            # print(f"lamk = \n {lamk}")
-            # print(f"W = \n {W}")
+            pk, lamk = Solvers.solveEqualityQP(H, gk, Aw, zerow, 'LUSparse') 
+            if printValues:   
+                print(f"Iteration: k = {k}")
+                print(f"xk = \n {xk}")
+                print(f"pk = \n {pk}")
+                print(f"lamk = \n {lamk}")
+                print(f"W = \n {W}")
             if np.isclose(np.linalg.norm(pk), 0):            
                 if np.all(lamk >= numtol):           
-                    # The optimal solution has been founds
-                    xs = xk            
+                    # The optimal solution has been founds     
                     lams[W] = lamk
-                    print(f"Solution found after {k} iterations: x = \n {xs}")
                     sol["succes"] = 1
                     # Store values
                     xkStore[:, k:k+1] = xk
@@ -191,6 +197,7 @@ class Solvers:
                     # Remove the most negative constraint from the working set
                     j = np.argmin(lamk)
                     W = np.setdiff1d(W, W[j])
+                    W = W.tolist()
                     # xk = xk                           
             else:    
                 # Compute the distance to the nearest inactive constraint in the 
@@ -202,16 +209,17 @@ class Solvers:
                 # Find blocking constraints
                 blockCrit = Anw.T @ pk
                 blockCrit = blockCrit.flatten() 
-                blockCrit < 0
-                iblock = nW[blockCrit < -numtol]
+                blockMask = blockCrit < 0
+                iblock = nW[blockMask]                
                 # Find step length        
-                alphas = (b[iblock] - Anw[:, iblock].T @ xk)/( Anw[:, iblock].T @ pk )
+                cnW = (Anw[:, blockMask].T @ xk + b[iblock])
+                alphas = -cnW/( Anw[:, blockMask].T @ pk )
                 alpha = np.minimum(1, alphas)
                 j = np.argmin(alpha)
                 alphak = alpha[j]
                 if alphak < 1:      # Take reduced step and add blocking constraint
                     xk = xk + alphak*pk
-                    W = np.append(W, j)
+                    W.append(iblock[j])
                     W.sort()
                 else:               # Take full step
                     xk = xk + pk
@@ -221,7 +229,10 @@ class Solvers:
         sol["xiter"] = xkStore[:, 0:k+1]
         sol["Witer"] = WStore[:, 0:k+1]
         if sol["succes"] == 0:
-            print("Solution could not be found")     
+            print("Solution could not be found")
+        elif sol["succes"] == 1:
+            sol['x'] = xk
+            print(f"Solution found after {k} iterations")
 
         return sol
     
@@ -237,7 +248,7 @@ class Solvers:
                     : C'x >= d 
         """
         # Settings
-        maxiter = 10       # Maximum no. of iterations
+        maxiter = 100      # Maximum no. of iterations
         tolL = 1e-9        # Lagrangian gradient
         tolA = 1e-9        # Equality constraint
         tolC = 1e-9        # Inequality constraint
@@ -365,6 +376,8 @@ class Solvers:
         sol["x"] = x
         if sol["succes"] == 0:
             print("Solution could not be found")    
+        elif sol["succes"] == 1:
+            print(f"Solution found after {k} iterations")
 
         return sol
 
@@ -373,7 +386,7 @@ class Solvers:
         """ Solve a LP in standard form using the revised simplex method """
 
         # Settings
-        maxiter = 10       # Maximum no. of iterations
+        maxiter = 100       # Maximum no. of iterations
         numtol = 1e-6       # Numerical tolerance for checks
 
         # Initialize
@@ -402,7 +415,7 @@ class Solvers:
             gN = g[Ns]
             gB = g[Bs]
 
-            # Solve for lagrange multiplers for the inequality constrsol["succes"] = 1aints: B'mu = gB
+            # Solve for lagrange multiplers for the inequality constraints
             mu = np.linalg.solve(B.T, gB)
             
             # Find lagrange multipliers for the bound constraints
@@ -429,7 +442,7 @@ class Solvers:
                 i_s = Ns[s]         
 
                 # Check for unbounded problem
-                h = np.linalg.solve(B, A[:, i_s:i_s+1])
+                h = np.linalg.solve(B, A[:, i_s:i_s+1])  # TODO: Re-use the factorization of B' 
                 hpos = h > 0
 
                 if np.sum(hpos) == 0:
