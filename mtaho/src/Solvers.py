@@ -439,10 +439,7 @@ class Solvers:
 
             # u = Hfact.solve_A(r)
 
-
-
-
-
+        # TODO: Finish this algorithm....
 
         # Append results
         sol["iter"] = k
@@ -550,6 +547,106 @@ class Solvers:
 
         return sol
        
+    @classmethod
+    def SQPEqualitySolver(self, objFun, consFun, x0, method=None):
+        """ 
+        Solve an equality constrained NLP on the form:
+            min_x   : f(x)
+            s.t.    : h(x) = 0  
+        using the Sequential Quadratic Programming (SQP) method, 
+        which solves a sequence of model problems on the form:
+            min_x   : 0.5x'Hx + g'x
+            s.t.    : A'x = b
+        """
 
+        # Settings
+        maxiter = 200
+        tolL = 1e-9         # Tolerance for Lagrangian gradient
+        tolc = 1e-9         # Tolerance for constraint violation
 
+        # Evaluate the objective, the constraints and their derivatives
+        x = x0.copy()
+        xOld = x.copy()
+        f, df, d2f = objFun(x)
+        c, dc, d2c = consFun(x)
+
+        # Initialize
+        n, m = np.shape(dc)
+        sol = {}
+        sol["succes"] = 0
+        printValues = False #n < 5
+        xStore = np.zeros((n, maxiter+1))
+        xStore[:, 0:1] = x
+
+        y = np.zeros(((m, 1)))      # Lagrange multipliers
+        dL = df - dc*y              # Lagrangian gradient
+        if method == 'BFGS':
+            B = np.identity(n)
+
+        for k in range(maxiter):
+
+            # Compute Hessian of the Lagrangian
+            if method is None:
+                H = d2f
+                for i in range(m):
+                    H -= y[i,0]*d2c[:,:,i]
+            elif method == 'BFGS':
+                xOld = x.copy()
+                H = B.copy()
+                
+            # Solve equality constrained QP
+            p, y = self.solveEqualityQP(H, df, dc, -c, 'LUSparse')
+
+            # Lagrangian with old x and new Lagrange multipliers 
+            if method == 'BFGS':
+                dLk = df - dc*y 
+
+            # Take step
+            x += p
+
+            # Evaluate the objective, the constraints and their derivatives
+            f, df, d2f = objFun(x)
+            c, dc, d2c = consFun(x)
+
+            # Lagrangian gradient
+            dL = df - dc*y
+
+            # Print and store values
+            if printValues:   
+                print(f"Iteration: k = {k}")
+                print(f"x = \n {x}")
+                print(f"p = \n {p}")
+                print(f"y = \n {y}")
+            xStore[:, k+1:k+2] = x
+
+            # Check convergence criteria
+            converged = (np.linalg.norm(dL, np.inf) < tolL) and \
+                        (np.linalg.norm(c, np.inf) < tolc)
+            if converged:
+                sol["succes"] = 1
+                break
+
+            # Update Lagrangian Hessian using modified BFGS (if applicable)
+            if method == 'BFGS':
+                p = x - xOld
+                q = dL - dLk
+                pq = p.T@q
+                Bp = B@p
+                pBp = p.T@Bp
+                if pq >= 0.2*pBp:
+                    theta = 1
+                elif pq < 0.2*pBp:
+                    theta = (0.8*pBp)/(pBp - pq)
+                r = theta*q + (1 - theta)*Bp
+                B += (r@r.T)/(p.T@r) - (Bp@Bp.T)/(pBp)
+                H = B             
+
+        # Store values and print result
+        sol["xStore"] = xStore[:, 0:k]
+        if sol["succes"] == 1:
+            print(f"Solution found after {k} iterations")
+        else:
+            print("No solution found")          
+
+        return sol
 

@@ -30,7 +30,6 @@ def objFunHimmelblau(x):
     return f
 
 
-
 # 6: Local minimizers
 N = 50
 x0_x = np.linspace(-5, 5, N)
