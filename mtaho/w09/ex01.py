@@ -18,7 +18,7 @@ from mtaho.src.FiniteDifference import FD
 from mtaho.src.BasicOpt import Opt
 from mtaho.src.Solvers import Solvers
 
-workDir = f"{projectDir}/mtaho/w09"
+workDir = f"{projectDir}/mtaho/w09/"
 
 def contourFunHimmelblau(X, Y):
     tmp1 = X**2 + Y - 11
@@ -59,12 +59,13 @@ x0 = np.array([[-3, -1]], dtype=np.float64).T
 f, df, d2f = funJacHess(x0)
 c, dc, d2c = consJacHess(x0)
 
-sol = Solvers.SQPEqualitySolver(funJacHess, consJacHess, x0)
-solBFGS = Solvers.SQPEqualitySolver(funJacHess, consJacHess, x0, method='BFGS')
-solLine = Solvers.SQPEqualitySolver(funJacHess, consJacHess, x0,
-                                    lineSearch=True)
-solBFGSLine = Solvers.SQPEqualitySolver(funJacHess, consJacHess, x0, method='BFGS',
-                                    lineSearch=True)
+sol = Solvers.SQPSolver(funJacHess, x0, EQConsFun=consJacHess)
+solBFGS = Solvers.SQPSolver(funJacHess, x0, EQConsFun=consJacHess, 
+                            BFGS=True, lineSearch=True)
+solLine = Solvers.SQPSolver(funJacHess, x0, EQConsFun=consJacHess,
+                            lineSearch=True)
+solBFGSLine = Solvers.SQPSolver(funJacHess, x0, EQConsFun=consJacHess,
+                            BFGS=True, lineSearch=True)
 
 # Plot solutions on contour plot:
 xlim = [-5, 5]

@@ -43,13 +43,16 @@ def funJacHess(x):
 
 def consJacHess(x):
     x = x[:, 0]
-    c = np.array([[(x[0] + 2)**2 - x[1]]],
+    c = np.array([[(x[0] + 2)**2 - x[1]],
+                  [-4*x[0] + 10*x[1]]],
                  dtype=np.float64)
-    dc = np.array([[2*(x[0] + 2), -1]],
+    dc = np.array([[2*(x[0] + 2), -1],
+                   [-4, 10]],                   
                   dtype=np.float64).T
-    d2c = np.zeros((2, 2, 1),
+    d2c = np.zeros((2, 2, 2),
                    dtype=np.float64)
     d2c[:, :, 0] = np.array([[2, 0], [0, 0]])
+    d2c[:, :, 1] = np.array([[0, 0], [0, 0]])
     return c, dc, d2c
 
 # Starting point
@@ -59,12 +62,13 @@ x0 = np.array([[-3, -1]], dtype=np.float64).T
 f, df, d2f = funJacHess(x0)
 c, dc, d2c = consJacHess(x0)
 
-sol = Solvers.SQPEqualitySolver(funJacHess, consJacHess, x0)
-solBFGS = Solvers.SQPEqualitySolver(funJacHess, consJacHess, x0, method='BFGS')
-solLine = Solvers.SQPEqualitySolver(funJacHess, consJacHess, x0,
-                                    lineSearch=True)
-solBFGSLine = Solvers.SQPEqualitySolver(funJacHess, consJacHess, x0, method='BFGS',
-                                    lineSearch=True)
+# sol = Solvers.SQPSolver(funJacHess, x0, IQConsFun=consJacHess)
+# solBFGS = Solvers.SQPSolver(funJacHess, x0, IQConsFun=consJacHess, 
+#                             BFGS=True, lineSearch=True)
+solLine = Solvers.SQPSolver(funJacHess, x0, IQConsFun=consJacHess,
+                            lineSearch=False)
+# solBFGSLine = Solvers.SQPSolver(funJacHess, x0, IQConsFun=consJacHess,
+#                             BFGS=True, lineSearch=True)
 
 # Plot solutions on contour plot:
 xlim = [-5, 5]
@@ -96,4 +100,4 @@ ax.set_xlim(xlim)
 ax.set_ylim(xlim)
 plt.legend(bbox_to_anchor=(1.2, 1), loc="upper left")
 fig.tight_layout()
-fig.savefig(f'{workDir}/ex04Contour.png')--
+fig.savefig(f'{workDir}/ex04Contour.png')

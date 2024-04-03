@@ -145,8 +145,7 @@ class Solvers:
         
         Problem:
             min_x : 0.5*x'Hx + g'x
-            s.t.  :  A'x =  b
-                  :  C'x >= d
+            s.t.  :  A'x >= b
         """
 
         # Initialize
@@ -161,7 +160,7 @@ class Solvers:
         numtol = 1e-6          # Numerical tolerance for checks
 
         # Set initial values
-        xk = x0
+        xk = x0.copy()
 
         # Store solution info
         xkStore = np.zeros((n, maxiter))
@@ -234,6 +233,8 @@ class Solvers:
             print("Solution could not be found")
         elif sol["succes"] == 1:
             sol['x'] = xk
+            sol['lam'] = lamk
+            sol['W'] = W
             print(f"Solution found after {k} iterations")
 
         return sol
@@ -375,11 +376,12 @@ class Solvers:
         # Append results
         sol["iter"] = k
         sol["xiter"] = xStore[:, 0:k]
-        sol["x"] = x
         if sol["succes"] == 0:
             print("Solution could not be found")    
         elif sol["succes"] == 1:
             print(f"Solution found after {k} iterations")
+            sol["x"] = x
+            sol['z'] = z
 
         return sol
 
@@ -549,16 +551,65 @@ class Solvers:
        
     @classmethod
     def SQPSolver(self, objFun, x0, EQConsFun=None, IQConsFun=None, 
-                          method=None, lineSearch=False):
+                  BFGS=False, lineSearch=False):
         """ 
-        Solve an equality constrained NLP on the form:
+        Solve a constrained NLP on the form:
             min_x   : f(x)
-            s.t.    : h(x) = 0  
+            s.t.    : h(x)  = 0  
+                    : g(x) >= 0
         using the Sequential Quadratic Programming (SQP) method, 
         which solves a sequence of model problems on the form:
             min_x   : 0.5x'Hx + g'x
-            s.t.    : A'x = b
+            s.t.    : A'x  = b
+                    : C'x >= d
         """
+
+        def evaluateConstraints(x):
+            n = len(x)
+            if EQConsFun is not None:
+                h, dh, d2h = EQConsFun(x)
+            else:
+                h = np.zeros((1, ))
+                dh = np.zeros((n, 1))
+                d2h = np.zeros((n, n, 1))
+            if IQConsFun is not None:
+                g, dg, d2g = IQConsFun(x)
+            else:
+                g = np.zeros((1, ))
+                dg = np.zeros((n, 1))
+                d2g = np.zeros((n, n, 1))
+            return h, dh, d2h, g, dg, d2g
+        
+        def backtrackingLineSearch(f, df, h, g, lam, mu, dx):
+            # Initialize as full step
+            alpha = 1      
+            
+            # Powell's update of the penalty parameters
+            lam = np.maximum(np.abs(y), 0.5*(lam + np.abs(y)))
+            mu = np.maximum(np.abs(z), 0.5*(mu + np.abs(z)))
+            
+            # Get coefficients of the quadratic approximation of the merit function
+            c = f + lam.T@np.abs(h) + mu*np.abs(np.min([0, g]))
+            b = df.T@dx - lam.T@np.abs(h) - mu.T*np.abs(np.min([0, g]))
+
+            for i in range(maxIterLS):
+                # Update x
+                xi = x + alpha*dx              
+                # Evaluate f(x), h(x), g(x)
+                f, df, d2f = objFun(xi)
+                h, dh, d2h, g, dg, d2g = evaluateConstraints(xi)
+                # Evaluate merit function at alpha: phi = phi(alpha)
+                phi = f + lam.T@np.abs(h) + lam.T@np.abs(h) + mu*np.abs(np.min([0, g]))
+                if phi <= c + 0.1*b*alpha:      # Check Armijo's condition
+                    break
+                else:
+                    a = (phi - (c + b*alpha))/(alpha**2)
+                    alpha_min = -b/(2*a)
+                    alpha = np.min([0.9*alpha, np.max([float(alpha_min), 0.1*alpha])])
+            
+            if printValues:
+                print(f"alpha = {alpha}")
+            return alpha, lam
 
         # Settings
         maxiter = 200
@@ -571,100 +622,66 @@ class Solvers:
         xOld = x.copy()
         f, df, d2f = objFun(x)
 
-        def evaluateConstraints(EQConsFun, IQConsFun):
-            if EQConsFun is not None:
-                h, dh, d2h = EQConsFun(x)
-            else:
-                h = 0
-                dh = np.array([[0, 0]]).T
-                d2h = np.array([[0, 0],
-                                [0, 0]]).T
-            if IQConsFun is not None:
-                g, dg, d2g = IQConsFun(x)
-            else:
-                h = 0
-                dh = np.array([[0, 0]]).T
-                d2h = np.array([[0, 0],
-                                [0, 0]]).T
-            return h, dh, d2h, g, dg, d2g
-
         # Initialize
-        n, m = np.shape(dh)
+        h, dh, d2h, g, dg, d2g = evaluateConstraints(x)
+        n, mE = np.shape(dh)
+        mI = np.shape(dg)[1]
         sol = {}
         sol["succes"] = 0
         printValues = False #n < 5
         xStore = np.zeros((n, maxiter+1))
         xStore[:, 0:1] = x
 
-        y = np.zeros(((m, 1)))      # Lagrange multipliers
+        y = np.zeros(((mE, 1)))      # Lagrange multipliers for equality constraints
+        z = np.zeros(((mI, 1)))      # Lagrange multipliers for inequality constraints
         lam = np.abs(y)
+        mu = np.abs(z)
+        W = []
         dL = df - dh@y              # Lagrangian gradient
         alpha = 1                   # Assume full step (unless line search)
-        if method == 'BFGS':
+        if BFGS:
             B = np.identity(n)
-        
-        def backtrackingLineSearch(f, df, h, lam, dx):
-            # Initialize as full step
-            alpha = 1      
             
-            # Powell's update of the penalty parameters
-            lam = np.maximum(np.abs(y), 0.5*(lam + np.abs(y)))
-            # mu = np.maximum([np.abs(z), 0.5*(mu + np.abs(z))])
-            
-            # Get coefficients of the quadratic approximation of the merit function
-            c = f + lam.T@np.abs(h) # + mu*np.abs(np.min([0, g]))
-            b = df.T@dx - lam.T@np.abs(h) #- mu.T*np.abs(np.min([0, g]))
-
-            for i in range(maxIterLS):
-                # Update x
-                xi = x + alpha*dx              
-                # Evaluate f(x), h(x), g(x)
-                f, df, d2f = objFun(xi)
-                h, dh, d2h = consFun(xi)
-                # Evaluate merit function at alpha: phi = phi(alpha)
-                phi = f + lam.T@np.abs(h) + lam.T@np.abs(h) # + mu*np.abs(np.min([0, g]))
-                if phi <= c + 0.1*b*alpha:      # Check Armijo's condition
-                    break
-                else:
-                    a = (phi - (c + b*alpha))/(alpha**2)
-                    alpha_min = -b/(2*a)
-                    alpha = np.min([0.9*alpha, np.max([float(alpha_min), 0.1*alpha])])
-            
-            if printValues:
-                print(f"alpha = {alpha}")
-            return alpha, lam
-
         for k in range(maxiter):
 
             # Compute Hessian of the Lagrangian
-            if method is None:
+            if not BFGS:
                 H = d2f
-                for i in range(m):
+                for i in range(mE):
                     H -= y[i,0]*d2h[:,:,i]
-            elif method == 'BFGS':
+                for i in range(mI):
+                    H -= z[i, 0]*d2g[:,:,i]
+            elif BFGS:
                 xOld = x.copy()
                 H = B.copy()
                 
             # Solve equality constrained QP
-            p, y = self.solveEqualityQP(H, df, dh, -h, 'LUSparse')
+            # p, y = self.solveEqualityQP(H, df, dh, -h, 'LDLSparse')
+            # sol = self.QPSolverInequalityActiveSet(H, df, dg, -g, x)
+            # p = sol['x']
+            # z = sol['lam']
+            # W = sol['W']
+            # sol = self.QPSolverInteriorPoint(H, g, dg, -g, x0=x)
+            # p = sol['x']
+            # z = sol['z']
 
             # Lagrangian with old x and new Lagrange multipliers 
-            if method == 'BFGS':
-                dLk = df - dh@y
+            if BFGS:
+                dLk = df - dh@y - dg@z
 
             # Line search
             if lineSearch:
-                alpha, lam = backtrackingLineSearch(f, df, h, lam, p)
+                alpha, lam = backtrackingLineSearch(f, df, h, g, lam, mu, p)
 
             # Take step
             x += alpha*p
 
             # Evaluate the objective, the constraints and their derivatives
             f, df, d2f = objFun(x)
-            h, dh, d2h = consFun(x)
+            h, dh, d2h, g, dg, d2g = evaluateConstraints(x)
 
             # Lagrangian gradient
-            dL = df - dh*y
+            dL = df - dh*y - dg@z
 
             # Print and store values
             if printValues:   
@@ -682,7 +699,7 @@ class Solvers:
                 break
 
             # Update Lagrangian Hessian using modified BFGS (if applicable)
-            if method == 'BFGS':
+            if BFGS:
                 p = x - xOld
                 q = dL - dLk
                 pq = p.T@q
@@ -698,8 +715,10 @@ class Solvers:
 
         # Store values and print result
         sol["xStore"] = xStore[:, 0:k]
+        ls = " Line Search" if lineSearch else ' '*0
+        method = " BFGS" if BFGS else ' '*0
         if sol["succes"] == 1:
-            print(f"Solution found after {k} iterations")
+            print(f"SQP{method}{ls}: Solution found after {k} iterations")
         else:
             print("No solution found")          
 

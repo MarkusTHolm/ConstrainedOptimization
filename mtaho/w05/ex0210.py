@@ -61,7 +61,7 @@ b = - np.array([[2.0, 6.0, 2.0, 0.0, 0.0]]).T
 ## Test method
 x0 = np.array([[4, 0.5]]).T
 W = [2, 4]
-sol = Solvers.QPSolverActiveSet(H, g, A, b, x0, W)
+sol = Solvers.QPSolverInequalityActiveSet(H, g, A, b, x0, W)
 
 print(sol)
 
