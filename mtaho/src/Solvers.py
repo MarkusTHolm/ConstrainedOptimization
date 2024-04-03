@@ -548,7 +548,8 @@ class Solvers:
         return sol
        
     @classmethod
-    def SQPEqualitySolver(self, objFun, consFun, x0, method=None):
+    def SQPSolver(self, objFun, x0, EQConsFun=None, IQConsFun=None, 
+                          method=None, lineSearch=False):
         """ 
         Solve an equality constrained NLP on the form:
             min_x   : f(x)
@@ -563,15 +564,32 @@ class Solvers:
         maxiter = 200
         tolL = 1e-9         # Tolerance for Lagrangian gradient
         tolc = 1e-9         # Tolerance for constraint violation
+        maxIterLS = 10      # Maximium iterations for the line seach
 
         # Evaluate the objective, the constraints and their derivatives
         x = x0.copy()
         xOld = x.copy()
         f, df, d2f = objFun(x)
-        c, dc, d2c = consFun(x)
+
+        def evaluateConstraints(EQConsFun, IQConsFun):
+            if EQConsFun is not None:
+                h, dh, d2h = EQConsFun(x)
+            else:
+                h = 0
+                dh = np.array([[0, 0]]).T
+                d2h = np.array([[0, 0],
+                                [0, 0]]).T
+            if IQConsFun is not None:
+                g, dg, d2g = IQConsFun(x)
+            else:
+                h = 0
+                dh = np.array([[0, 0]]).T
+                d2h = np.array([[0, 0],
+                                [0, 0]]).T
+            return h, dh, d2h, g, dg, d2g
 
         # Initialize
-        n, m = np.shape(dc)
+        n, m = np.shape(dh)
         sol = {}
         sol["succes"] = 0
         printValues = False #n < 5
@@ -579,9 +597,42 @@ class Solvers:
         xStore[:, 0:1] = x
 
         y = np.zeros(((m, 1)))      # Lagrange multipliers
-        dL = df - dc*y              # Lagrangian gradient
+        lam = np.abs(y)
+        dL = df - dh@y              # Lagrangian gradient
+        alpha = 1                   # Assume full step (unless line search)
         if method == 'BFGS':
             B = np.identity(n)
+        
+        def backtrackingLineSearch(f, df, h, lam, dx):
+            # Initialize as full step
+            alpha = 1      
+            
+            # Powell's update of the penalty parameters
+            lam = np.maximum(np.abs(y), 0.5*(lam + np.abs(y)))
+            # mu = np.maximum([np.abs(z), 0.5*(mu + np.abs(z))])
+            
+            # Get coefficients of the quadratic approximation of the merit function
+            c = f + lam.T@np.abs(h) # + mu*np.abs(np.min([0, g]))
+            b = df.T@dx - lam.T@np.abs(h) #- mu.T*np.abs(np.min([0, g]))
+
+            for i in range(maxIterLS):
+                # Update x
+                xi = x + alpha*dx              
+                # Evaluate f(x), h(x), g(x)
+                f, df, d2f = objFun(xi)
+                h, dh, d2h = consFun(xi)
+                # Evaluate merit function at alpha: phi = phi(alpha)
+                phi = f + lam.T@np.abs(h) + lam.T@np.abs(h) # + mu*np.abs(np.min([0, g]))
+                if phi <= c + 0.1*b*alpha:      # Check Armijo's condition
+                    break
+                else:
+                    a = (phi - (c + b*alpha))/(alpha**2)
+                    alpha_min = -b/(2*a)
+                    alpha = np.min([0.9*alpha, np.max([float(alpha_min), 0.1*alpha])])
+            
+            if printValues:
+                print(f"alpha = {alpha}")
+            return alpha, lam
 
         for k in range(maxiter):
 
@@ -589,27 +640,31 @@ class Solvers:
             if method is None:
                 H = d2f
                 for i in range(m):
-                    H -= y[i,0]*d2c[:,:,i]
+                    H -= y[i,0]*d2h[:,:,i]
             elif method == 'BFGS':
                 xOld = x.copy()
                 H = B.copy()
                 
             # Solve equality constrained QP
-            p, y = self.solveEqualityQP(H, df, dc, -c, 'LUSparse')
+            p, y = self.solveEqualityQP(H, df, dh, -h, 'LUSparse')
 
             # Lagrangian with old x and new Lagrange multipliers 
             if method == 'BFGS':
-                dLk = df - dc*y 
+                dLk = df - dh@y
+
+            # Line search
+            if lineSearch:
+                alpha, lam = backtrackingLineSearch(f, df, h, lam, p)
 
             # Take step
-            x += p
+            x += alpha*p
 
             # Evaluate the objective, the constraints and their derivatives
             f, df, d2f = objFun(x)
-            c, dc, d2c = consFun(x)
+            h, dh, d2h = consFun(x)
 
             # Lagrangian gradient
-            dL = df - dc*y
+            dL = df - dh*y
 
             # Print and store values
             if printValues:   
@@ -621,7 +676,7 @@ class Solvers:
 
             # Check convergence criteria
             converged = (np.linalg.norm(dL, np.inf) < tolL) and \
-                        (np.linalg.norm(c, np.inf) < tolc)
+                        (np.linalg.norm(h, np.inf) < tolc)
             if converged:
                 sol["succes"] = 1
                 break
@@ -649,4 +704,3 @@ class Solvers:
             print("No solution found")          
 
         return sol
-

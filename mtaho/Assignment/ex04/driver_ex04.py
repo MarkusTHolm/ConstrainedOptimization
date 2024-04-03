@@ -18,7 +18,7 @@ from mtaho.src.FiniteDifference import FD
 from mtaho.src.BasicOpt import Opt
 from mtaho.src.Solvers import Solvers
 
-workDir = f"{projectDir}/mtaho/w09"
+workDir = f"{projectDir}/mtaho/Assignment/ex04"
 
 def contourFunHimmelblau(X, Y):
     tmp1 = X**2 + Y - 11
@@ -96,4 +96,4 @@ ax.set_xlim(xlim)
 ax.set_ylim(xlim)
 plt.legend(bbox_to_anchor=(1.2, 1), loc="upper left")
 fig.tight_layout()
-fig.savefig(f'{workDir}/ex01Contour.png')
+fig.savefig(f'{workDir}/ex04Contour.png')--

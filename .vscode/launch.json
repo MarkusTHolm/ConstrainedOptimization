@@ -12,8 +12,9 @@
             // "program": "C:/Users/marku/Programming/ConstrainedOptimization/mtaho/w07/ex01.py",
             // "program": "/home/mtaho/Code/Courses/ConstrainedOptimization/mtaho/w05/ex029.py",
             // "program": "/home/mtaho/Code/Courses/ConstrainedOptimization/mtaho/w08/ex012.py",
-            "program": "/home/mtaho/Code/Courses/ConstrainedOptimization/mtaho/w09/ex01.py",
+            // "program": "/home/mtaho/Code/Courses/ConstrainedOptimization/mtaho/w09/ex01.py",
             // "program": "/home/mtaho/Code/Courses/ConstrainedOptimization/mtaho/Assignment/ex02/driver_ex02.py",
+            "program": "/home/mtaho/Code/Courses/ConstrainedOptimization/mtaho/Assignment/ex04/driver_ex04.py",
             "console": "integratedTerminal",
             "justMyCode": true
         }
