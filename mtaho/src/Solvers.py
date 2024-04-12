@@ -4,8 +4,10 @@ import scipy.sparse as sp
 import cvxopt
 import cvxopt.cholmod
 import sksparse
+import matplotlib.pyplot as plt
 import sksparse.cholmod
 from sksparse.cholmod import cholesky
+import qdldl
 # import torch
 
 class Solvers:
@@ -85,19 +87,29 @@ class Solvers:
         # Factorization:  PKP' = LDL' (Px = x(p))
         if not sparse:
                 # Optimized implementation
-            L, D, p = scipy.linalg.ldl(K, lower=True)           
-            d = np.diagonal(D)
-            z = scipy.linalg.solve_triangular(L, r, lower=True)      # Solve:   Lz = r
-            v = (z.T/d).T                                            # Compute: v = z/d
-            u = scipy.linalg.solve_triangular(L.T, v, lower=False)   # Solve:   L'u = v
+            # L, D, p = scipy.linalg.ldl(K, lower=True)           
+            # d = np.diagonal(D)
+            # z = scipy.linalg.solve_triangular(L, r, lower=True)      # Solve:   Lz = r
+            # v = (z.T/d).T                                            # Compute: v = z/d
+            # u = scipy.linalg.solve_triangular(L.T, v, lower=False)   # Solve:   L'u = v
                 # Naive implementation
             # w = scipy.linalg.solve(L, r, lower=True)      # Solve:   Lw = r
             # v = scipy.linalg.solve(D, w)                  # Solve:   Dv = w
             # u = scipy.linalg.solve(L.T, v, lower=False)   # Solve:   L'u = v
+                # Fix to avoid Bunch-Kaufman factorizaiton
+            u = scipy.linalg.solve(K, r, assume_a="sym")   # Solve:   Ku = r
         else:
-            Kfact = sksparse.cholmod.cholesky(K.tocsc())
-            u = Kfact.solve_A(r)
+            # Kfact = sksparse.cholmod.cholesky(K.tocsc())
+            # u = Kfact.solve_A(r)
 
+            # K = K.toarray()
+            # K = 0.5*(K + K.T)
+            # K = scipy.sparse.lil_matrix(K)
+
+            F = qdldl.Solver(K.tocsc())
+            u = F.solve(r)
+            u = u[np.newaxis].T
+               
         # Map solution to design variables and Lagrange multipliers
         x = u[0:n]
         lam = u[n:n+m]
