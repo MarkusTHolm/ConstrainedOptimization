@@ -3,11 +3,16 @@ import scipy
 import scipy.sparse as sp
 import cvxopt
 import cvxopt.cholmod
+import scipy.sparse
+import scipy.sparse.linalg
 import sksparse
 import matplotlib.pyplot as plt
 import sksparse.cholmod
 from sksparse.cholmod import cholesky
 import qdldl
+import datetime
+import logging
+import timeit
 # import torch
 
 class Solvers:
@@ -75,6 +80,7 @@ class Solvers:
         else:
             Kfact = scipy.sparse.linalg.splu(K.tocsc())
             u = Kfact.solve(r)    
+            # u = scipy.sparse.linalg.spsolve(K, r)
         # Map solution to design variables and Lagrange multipliers
         x = u[0:n]
         lam = u[n:n+m]

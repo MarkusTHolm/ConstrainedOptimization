@@ -12,6 +12,8 @@ from scipy.optimize import LinearConstraint, NonlinearConstraint
 import datetime
 import logging
 import timeit
+
+
 import pandas as pd
 # import cyipopt
 # from cyipopt import minimize_ipopt
@@ -54,16 +56,16 @@ def setupProblem(n, alpha, beta, density):
                          data_rvs=rvs)
     H = M@M.T + alpha*sp.sparse.eye(n, n)
 
-    x = np.random.randn(n, 1)
-    lam = np.random.randn(m, 1)
+    x0 = np.random.randn(n, 1)
+    lam0 = np.random.randn(m, 1)
     
-    b = A.T@x
-    g = A@lam - H@x
+    b = A.T@x0
+    g = A@lam0 - H@x0
     
     H = H.toarray()
     A = A.toarray()
 
-    return H, g, A, b
+    return H, g, A, b, x0, lam0
 
 # Problem: 
 # min_x : 0.5*x'Hx + g'x
@@ -71,9 +73,9 @@ def setupProblem(n, alpha, beta, density):
 
 n = 100
 alpha = 100
-beta = 0.5
-density = 0.15
-H, g, A, b = setupProblem(n, alpha, beta, density)
+beta = 1
+density = 1e-3
+H, g, A, b, x0, lam0 = setupProblem(n, alpha, beta, density)
 
 print("H = \n", H)
 print("g = \n", g)
@@ -110,13 +112,13 @@ x5, lam5 = Solvers.solveEqualityQP(H, g, A, b, type='LUSparse')
 print("x5 = \n", x5)
 print("lam5 = \n", lam5)
 
-x6, lam6 = Solvers.solveEqualityQP(H, g, A, b, type='LDLSparse')
-print("x6 = \n", x6)
-print("lam6 = \n", lam6)
+# x6, lam6 = Solvers.solveEqualityQP(H, g, A, b, type='LDLSparse')
+# print("x6 = \n", x6)
+# print("lam6 = \n", lam6)
 
 # Check for errors
 print("x_error = \n", 
-      np.linalg.norm(x1 + x2 + x3 + x4 + x5 - 5*x1))
+      np.linalg.norm(x1 + x2 + x3 + x4 + x5 - 5*x0))
     #   np.linalg.norm(x1 + x2 + x3 + x4 + x5 + x6 - 6*x1))
 print("lam_error = \n", 
       np.linalg.norm(lam1 + lam2 + lam3 + lam4 + lam5 - 5*lam1))
@@ -125,17 +127,17 @@ print("lam_error = \n",
 ### 9+13) Performance comparison
 # Problem parameters
 
-types = ['LU', 'LDL',  'LUSparse', 'LDLSparse', 'NullSpace',
+types = ['LU', 'LDL',  'LUSparse', 'NullSpace',
          'RangeSpace']
 # types = types[-2:]
-NArray = np.arange(500, 1000, 100)
+NArray = np.arange(1000, 2000, 200)
 times = np.zeros((len(NArray), len(types)))
 outPath = f"{workDir}/timings_solvers.csv"
 
 if 1:
     for i, type in enumerate(types):
         for j, n in enumerate(NArray):
-            H, g, A, b = setupProblem(n, alpha, beta, density)            
+            H, g, A, b, x0, lam0 = setupProblem(n, alpha, beta, density)            
             start_timer = timeit.default_timer()
             x, lam = Solvers.solveEqualityQP(H, g, A, b, type)        
             times[j, i] = timeit.default_timer() - start_timer
@@ -155,7 +157,7 @@ for k, type in enumerate(types):
         ls = 's-'
         fc = 'none'
         ms = 7
-    ax.plot(NArray, df[type], ls, label=type, linewidth=3, 
+    ax.plot(NArray, df[type], ls, label=type, linewidth=2, 
              markerfacecolor=fc, markeredgewidth=2, markersize=ms)
 ax.set_xlabel("Problem size: $N$")
 ax.set_ylabel("Solution time [s]")
@@ -167,11 +169,11 @@ fig.tight_layout()
 plt.savefig(f'{workDir}/timings_solvers.png')
 
 ### 10) Sparsity pattern of K
-N = 100
-H, g, A, b = setupProblem(N, uBar, d0)
-K, r, m = Solvers.EqualityQPKKT(H, g, A, b)
+# N = 100
+# H, g, A, b = setupProblem(N, uBar, d0)
+# K, r, m = Solvers.EqualityQPKKT(H, g, A, b)
 
-fig, ax = plt.subplots()
-plt.spy(K)
-plt.savefig(f'{workDir}/Ksparsity_pattern.png', dpi=600)
+# fig, ax = plt.subplots()
+# plt.spy(K)
+# plt.savefig(f'{workDir}/Ksparsity_pattern.png', dpi=600)
 
