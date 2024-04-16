@@ -73,9 +73,16 @@ def setupProblem(n, alpha, beta, density):
 
 n = 100
 alpha = 100
-beta = 1
-density = 1e-3
+beta = 0.5
+density = 0.15
 H, g, A, b, x0, lam0 = setupProblem(n, alpha, beta, density)
+
+data = {}
+data["H"] = H
+data["g"] = g
+data["A"] = A
+data["b"] = b
+sp.io.savemat(f"{workDir}/problem.mat", data)
 
 print("H = \n", H)
 print("g = \n", g)
@@ -112,9 +119,9 @@ x5, lam5 = Solvers.solveEqualityQP(H, g, A, b, type='LUSparse')
 print("x5 = \n", x5)
 print("lam5 = \n", lam5)
 
-# x6, lam6 = Solvers.solveEqualityQP(H, g, A, b, type='LDLSparse')
-# print("x6 = \n", x6)
-# print("lam6 = \n", lam6)
+x6, lam6 = Solvers.solveEqualityQP(H, g, A, b, type='LDLSparse')
+print("x6 = \n", x6)
+print("lam6 = \n", lam6)
 
 # Check for errors
 print("x_error = \n", 

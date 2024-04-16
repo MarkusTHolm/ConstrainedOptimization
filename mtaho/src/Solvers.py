@@ -63,6 +63,7 @@ class Solvers:
         K[0:n, n:n+m] = -A
         r[0:n, 0:1] = -g
         r[n:n+m, 0:1] = -b
+        K = 0.5*(K + K.T)
         return K, r, m
     
     @staticmethod
