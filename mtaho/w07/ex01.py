@@ -34,7 +34,7 @@ workDir = f"{projectDir}/mtaho/w06"
 #       : x >= 0
 
 # 
-if 1: # Generate random problem that is well-posed
+if 0: # Generate random problem that is well-posed
     
     # Settings
     n = 4

@@ -23,6 +23,7 @@ set(0,'defaultAxesFontSize',15);
 
 %% Load variables
 load('plot_output.mat')
+load('solCVX.mat')
 
 %% Simulate system and convert to physical variables
 u = reshape(U,[2,100]);
@@ -41,7 +42,7 @@ u = u + us;
 r = reshape(R_k,[2 100]) + zs;
 
 %% Plot inputs
-figure
+f1 = figure();
 tiledlayout(2,1)
 nexttile
 for i=1:2
@@ -70,6 +71,7 @@ ylabel('Height [cm]')
 title('Outputs')
 xlim([T(1) T(end)])
 legend('$z_1$','$r_1$','$z_2$','$r_2$')
+saveas(f1, 'PlotSolutionQP.eps', 'epsc')
 
 
 end

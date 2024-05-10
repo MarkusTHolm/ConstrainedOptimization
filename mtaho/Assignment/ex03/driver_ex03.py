@@ -26,20 +26,17 @@ from mtaho.src.FiniteDifference import FD
 from mtaho.src.BasicOpt import Opt
 from mtaho.src.Solvers import Solvers
 
-workDir = f"{projectDir}/mtaho/Assignment/ex02"
+workDir = f"{projectDir}/mtaho/Assignment/ex03"
 
 ### 3) Define problem
 
-data = sp.io.loadmat(f'{workDir}/QP_Test.mat')
+data = sp.io.loadmat(f'{workDir}/LP_Test.mat')
 
 # Load data
-H = data['H'].astype(np.float64)
-g = data['g'].astype(np.float64)
 C = data['C'].astype(np.float64)
-dl = data['dl'].astype(np.float64)
-du = data['du'].astype(np.float64)
-l = data['l'].astype(np.float64)
-u = data['u'].astype(np.float64)
+Pd_max = data['Pd_max'].astype(np.float64)
+Pg_max = data['Pg_max'].astype(np.float64)
+U = data['U'].astype(np.float64)
 
 # Convert problem to match custom solver interface:
 #     min_x   : 0.5*x'Hx + g'x

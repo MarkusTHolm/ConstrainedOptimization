@@ -205,10 +205,10 @@ c = cvxopt.matrix(0.0, (n, 1))
 c[nx:n] = 1.0
 
 G = cvxopt.matrix(0.0, (m, n))
-G[:nz, 0:nx] = -cvxopt.matrix(At)
+G[0:nz, 0:nx] = -cvxopt.matrix(At)
 Gzx = G[:nz, nx:]
 Gzx[::nz+1] = -gamma
-G[:nz, nx:] = Gzx
+G[0:nz, nx:] = Gzx
 Gzz = G[nz:, nx:]
 Gzz[::nz+1] = -1.0
 G[nz:, nx:] = Gzz

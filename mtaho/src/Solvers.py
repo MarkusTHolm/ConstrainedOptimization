@@ -116,6 +116,7 @@ class Solvers:
             F = qdldl.Solver(K.tocsc())
             u = F.solve(r)
             u = u[np.newaxis].T
+
                
         # Map solution to design variables and Lagrange multipliers
         x = u[0:n]
@@ -157,29 +158,29 @@ class Solvers:
         return x, lam
     
     @classmethod
-    def QPSolverInequalityActiveSet(self, H, g, A, b, x0, W=[]):
+    def QPSolverInequalityActiveSet(self, H, g, C, d, x0):
         """ Solve an inequality constrained convex QP using the 
         primal active-set method for a feasible starting point x0,
-        (and optionally corresponding active set).
+        and corresponding active set, W.
         
         Problem:
             min_x : 0.5*x'Hx + g'x
-            s.t.  :  A'x >= b
+            s.t.  :  C'x >= d
         """
+        # Settings
+        n, m = np.shape(C)
+        maxiter = 100*(n+m)    # Maximum no. of iterations
+        numtol = 1e-9          # Numerical tolerance for checks
 
         # Initialize
-        n = np.shape(x0)[0]
-        m = np.shape(A)[1]
         printValues = n < 10
-        lams = np.zeros((m, 1))
+        zs = np.zeros((m, 1))
         I = np.arange(m)
-
-        # Settings
-        maxiter = 100*(n+m)    # Maximum no. of iterations
-        numtol = 1e-6          # Numerical tolerance for checks
 
         # Set initial values
         xk = x0.copy()
+        Wtest = np.isclose(C.T@xk - d, 0)
+        W = I[Wtest.flatten()].tolist()
 
         # Store solution info
         xkStore = np.zeros((n, maxiter))
@@ -193,21 +194,21 @@ class Solvers:
             xkStore[:, k:k+1] = xk
             WStore[:, k] = np.isin(I, W)
             # Define system from the working set W
-            Aw = A[:, W]
+            Cw = C[:, W]
             zerow = np.zeros((len(W), 1))
             # Solve the equality constrained QP for the search direction pk
             gk = H @ xk + g
-            pk, lamk = Solvers.solveEqualityQP(H, gk, Aw, zerow, 'LUSparse') 
+            pk, zk = Solvers.solveEqualityQP(H, gk, Cw, zerow, 'LUSparse') 
             if printValues:   
                 print(f"Iteration: k = {k}")
                 print(f"xk = \n {xk}")
                 print(f"pk = \n {pk}")
-                print(f"lamk = \n {lamk}")
+                print(f"zk = \n {zk}")
                 print(f"W = \n {W}")
             if np.isclose(np.linalg.norm(pk), 0):            
-                if np.all(lamk >= numtol):           
-                    # The optimal solution has been founds     
-                    lams[W] = lamk
+                if np.all(zk >= numtol):           
+                    # The optimal solution has been found     
+                    zs[W] = zk
                     sol["succes"] = 1
                     # Store values
                     xkStore[:, k:k+1] = xk
@@ -215,7 +216,7 @@ class Solvers:
                     break
                 else:
                     # Remove the most negative constraint from the working set
-                    j = np.argmin(lamk)
+                    j = np.argmin(zk)
                     W = np.setdiff1d(W, W[j])
                     W = W.tolist()
                     # xk = xk                           
@@ -225,15 +226,15 @@ class Solvers:
 
                 # Extract system which is not contained in the working set
                 nW = np.setdiff1d(I, W)             
-                Anw = A[:, nW]               
+                Cnw = C[:, nW]               
                 # Find blocking constraints
-                blockCrit = Anw.T @ pk
+                blockCrit = Cnw.T @ pk
                 blockCrit = blockCrit.flatten() 
                 blockMask = blockCrit < -numtol
                 iblock = nW[blockMask]                
                 # Find step length        
-                cnW = (Anw[:, blockMask].T @ xk + b[iblock])
-                alphas = -cnW/( Anw[:, blockMask].T @ pk )
+                cnW = (d[iblock] - Cnw[:, blockMask].T @ xk)
+                alphas = cnW/( Cnw[:, blockMask].T @ pk )
                 alpha = np.minimum(1, alphas)
                 j = np.argmin(alpha)
                 alphak = alpha[j]
@@ -252,14 +253,14 @@ class Solvers:
             print("Solution could not be found")
         elif sol["succes"] == 1:
             sol['x'] = xk
-            sol['lam'] = lamk
+            sol['z'] = zs
             sol['W'] = W
-            print(f"Solution found after {k} iterations")
+            # print(f"Solution found after {k} iterations")
 
         return sol
     
     @classmethod
-    def QPSolverInteriorPoint(self, H, g, C, d, A=None, b=None, x0=None,
+    def QPSolverInteriorPoint(self, H, g, C, d, A=None, b=None,
                               loud=False):
         """ 
         Solve a convex QP using the primal-dual interior point
@@ -278,26 +279,33 @@ class Solvers:
         eta = 0.995        # Damping parameter for step length 
 
         # Initialize
-        n = np.shape(x0)[0]
+        n = np.shape(C)[0]
         if A is not None:
             me = np.shape(A)[1]
             yBar = np.zeros((me, 1))
+            eq = True
         else:
             me = 0
             A = np.zeros((n, 1))
             b = np.zeros((1, 1))
             yBar = np.zeros((1, 1))
+            eq = False
         mi = np.shape(C)[1]
-        xBar = x0.copy()        
+        xBar = np.ones((n, 1))
         zBar = np.ones((mi, 1))
         sBar = np.ones((mi, 1))
-        s = np.ones((mi, 1))
-        z = np.ones((mi, 1))
         eVec = np.ones((mi, 1))
         rhs = np.zeros((n+me, 1))
         sol = {}
-        sol["succes"] = 0
         xStore = np.zeros((n, maxiter))
+        residualStore = np.zeros((4, maxiter))
+        
+        def isConverged(rL, rA, rC, mu):
+            converged = (np.linalg.norm(rL, np.inf) < tolL) and \
+                        (np.linalg.norm(rA, np.inf) < tolA) and \
+                        (np.linalg.norm(rC, np.inf) < tolC) and \
+                        (np.abs(mu) < tolmu)
+            return converged
 
         def computeResiduals(H, g, C, d, A, b, x, y, z, s):
             rL = H@x + g - A@y - C@z
@@ -314,15 +322,18 @@ class Solvers:
                 K[n:n+me, 0:n] = -A.T
                 K[0:n, n:n+me] = -A
                 Kfact = sp.linalg.splu(sp.csc_matrix(K))  
-            else:
-                Kfact = sp.linalg.splu(sp.csc_matrix(HBar))                 
+            else: 
+                Kfact = sksparse.cholmod.cholesky(sp.csc_matrix(HBar))            
             return Kfact        
         
         def searchDirection(Kfact, rL, rA, z, s, C, rC, rSZ):
             rLBar = rL - (C*(z/s).T)@(rC - rSZ/z)            
             rhs[0:n] = -rLBar
             rhs[n:n+me] = -rA
-            u = Kfact.solve(rhs)    
+            if eq:
+                u = Kfact.solve(rhs)     
+            else:
+                u = Kfact.solve_A(rhs)
             dx = u[0:n]
             if me > 0:
                 dy = u[n:(n+me)]
@@ -339,23 +350,24 @@ class Solvers:
             alpha = np.min([alpha_z, alpha_s])
             return alpha
         
-        # Find a suitable initial point 
-        
+        # Find a suitable initial point         
         rL, rA, rC, rSZ = computeResiduals(H, g, C, d, A, b,
                                            xBar, yBar, zBar, sBar)
-        Kfact = factorize(H, C, z, s)
-        dxAff, dyAff, dzAff, dsAff = searchDirection(Kfact, rL, rA, z, s, C, rC, rSZ)
+        Kfact = factorize(H, C, zBar, sBar)
+        dxAff, dyAff, dzAff, dsAff = searchDirection(Kfact, rL, rA,
+                                                     zBar, sBar, C, rC, rSZ)
         x = xBar
         y = yBar
         z = np.maximum(1, np.abs(zBar + dzAff))
         s = np.maximum(1, np.abs(sBar + dsAff))
 
         # Primal-dual predictor corrector interior point algorithm
-
         rL, rA, rC, rSZ = computeResiduals(H, g, C, d, A, b,
                                            x, y, z, s)
         mu = (z.T@s)/mi
-        for k in range(maxiter):
+        converged = isConverged(rL, rA, rC, mu)
+        k = 0
+        while (not converged) and (k <= maxiter):
             Kfact = factorize(H, C, z, s)
             # Compute affine direction
             dxAff, dyAff, dzAff, dsAff = searchDirection(Kfact, rL, rA, z, s, C, rC, rSZ)
@@ -377,30 +389,31 @@ class Solvers:
                                                x, y, z, s)
             mu = (z.T@s)/mi
             # Check stopping criteria
-            if (np.linalg.norm(rL, np.inf) < tolL) and \
-               (np.linalg.norm(rA, np.inf) < tolA) and \
-               (np.linalg.norm(rC, np.inf) < tolC) and \
-               (np.linalg.norm(mu, np.inf) < tolmu):
-                sol["succes"] = 1
-                break
+            converged = isConverged(rL, rA, rC, mu)
+            k += 1
             # Print and store results
             if loud:
                 print(f"k = {k}: "
                     f"rL = {np.linalg.norm(rL, np.inf):1.1e}, "
                     f"rA = {np.linalg.norm(rA, np.inf):1.1e}, "
                     f"rC = {np.linalg.norm(rC, np.inf):1.1e}, "
-                    f"mu = {np.linalg.norm(mu, np.inf):1.1e}")
+                    f"mu = {np.abs(mu):1.1e}")
             xStore[:, k:k+1] = x
-        
+            residualStore[:, k] = [np.linalg.norm(rL, np.inf),
+                                   np.linalg.norm(rA, np.inf),
+                                   np.linalg.norm(rC, np.inf),
+                                   np.linalg.norm(rSZ, np.inf)]
+
         # Append results
         sol["iter"] = k
         sol["xiter"] = xStore[:, 0:k]
-        if sol["succes"] == 0:
+        if not converged:
             print("Solution could not be found")    
-        elif sol["succes"] == 1:
-            print(f"Solution found after {k} iterations")
+        else:
+            # print(f"Solution found after {k} iterations")
             sol["x"] = x
             sol['z'] = z
+            sol['residuals'] = residualStore
 
         return sol
 
@@ -475,7 +488,12 @@ class Solvers:
 
     @classmethod
     def LPSolverRevisedSimplex(self, g, A, b, x0):
-        """ Solve a LP in standard form using the revised simplex method """
+        """ Solve a LP in standard form using the revised simplex method
+        Problem:
+            min_x   : g'x
+            s.t.    : A'x = b
+                    :   x >= 0
+        """
 
         # Settings
         maxiter = 100       # Maximum no. of iterations
@@ -656,7 +674,7 @@ class Solvers:
         lam = np.abs(y)
         mu = np.abs(z)
         W = []
-        dL = df - dh@y              # Lagrangian gradient
+        dL = df - dh*y - dg@z       # Lagrangian gradient
         alpha = 1                   # Assume full step (unless line search)
         if BFGS:
             B = np.identity(n)
@@ -680,9 +698,9 @@ class Solvers:
             # p = sol['x']
             # z = sol['lam']
             # W = sol['W']
-            # sol = self.QPSolverInteriorPoint(H, g, dg, -g, x0=x)
-            # p = sol['x']
-            # z = sol['z']
+            sol = self.QPSolverInteriorPoint(H, df, dg, -g, x0=x)
+            p = sol['x']
+            z = sol['z']
 
             # Lagrangian with old x and new Lagrange multipliers 
             if BFGS:

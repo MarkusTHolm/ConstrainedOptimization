@@ -56,7 +56,7 @@ def consJacHess(x):
     return c, dc, d2c
 
 # Starting point
-x0 = np.array([[-3, -1]], dtype=np.float64).T
+x0 = np.array([[-4, 2]], dtype=np.float64).T
 
 # Evaluate functions
 f, df, d2f = funJacHess(x0)
@@ -66,7 +66,7 @@ c, dc, d2c = consJacHess(x0)
 # solBFGS = Solvers.SQPSolver(funJacHess, x0, IQConsFun=consJacHess, 
 #                             BFGS=True, lineSearch=True)
 solLine = Solvers.SQPSolver(funJacHess, x0, IQConsFun=consJacHess,
-                            lineSearch=False)
+                            lineSearch=True)
 # solBFGSLine = Solvers.SQPSolver(funJacHess, x0, IQConsFun=consJacHess,
 #                             BFGS=True, lineSearch=True)
 
@@ -87,10 +87,10 @@ def plotIterationArrows(xsol, color, label):
                 head_width=0.15, length_includes_head=True)
     ax.plot(0, 0, color, label=label)
 
-plotIterationArrows(sol['xStore'], 'r', 'Analytical Hessian')
-plotIterationArrows(solBFGS['xStore'], 'b', 'Modified BFGS')
+# plotIterationArrows(sol['xStore'], 'r', 'Analytical Hessian')
+# plotIterationArrows(solBFGS['xStore'], 'b', 'Modified BFGS')
 plotIterationArrows(solLine['xStore'], 'lime', 'Analytical Hessian w. LS')
-plotIterationArrows(solBFGSLine['xStore'], 'magenta', 'Modified BFGS w. LS ')
+# plotIterationArrows(solBFGSLine['xStore'], 'magenta', 'Modified BFGS w. LS ')
 
 # Draw constraints
 xc = np.linspace(xlim[0], xlim[1])
