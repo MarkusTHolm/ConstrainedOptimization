@@ -38,155 +38,219 @@ Pd_max = data['Pd_max'].astype(np.float64)
 Pg_max = data['Pg_max'].astype(np.float64)
 U = data['U'].astype(np.float64)
 
-# Convert problem to match custom solver interface:
-#     min_x   : 0.5*x'Hx + g'x
-#     s.t.    : A'x = b
-#             : C'x >= d 
-n, mI = np.shape(C)
-CBar = np.hstack([C, -C, np.identity(n), -np.identity(n)])
-dBar = np.vstack([dl, -du, l, -u])
-n, m = np.shape(CBar)
+# Convert to the form:
+#     min_x   : g'x
+#     s.t.    : A'x <= b
+#             : l <= x <= u
+
+nd = np.shape(U)[0]
+ng = np.shape(C)[0]
+n = ng+nd
+m = 1
+ed = np.ones((nd, 1))
+eg = np.ones((ng, 1))
+
+# x = [P_d]
+#     [P_g]
+g = np.vstack((-U, C))
+A = np.vstack((ed, -eg))
+b = 0
+l = np.zeros((n, 1))
+u = np.vstack((Pd_max, Pg_max))
 
 x0 = np.ones((n, 1))
 
-def printStats(x, z):
-    L = 0.5*x.T@H@x + g.T@x - z.T@(CBar.T@x - dBar)
-    dLdx = H@x + g - CBar@z
-    dLdz = -(CBar.T@x - dBar)
-    relative_gap = np.linalg.norm((CBar.T@x - dBar)*z/L, np.inf)
-    print(f"dLdx/L = {np.linalg.norm(dLdx, np.inf)/np.abs(L[0, 0]):1.3e}, "
-          f"dLdz/d = {np.max(dLdz)/np.linalg.norm(dBar, np.inf):1.3e}, "
-          f"relative_gap = {relative_gap:1.3e}")
-    return 
+#########################################################################################
+# Library solution 
+#########################################################################################
+# Convert problem to match SciPy solver interface:
+#     min_x   : c'x
+#     s.t.    : A_ub x <= b_ub
+#             : A_eq x <= b_eq
+#             : l <= x <= u
+c = g
+A_eq = A.T
+b_eq = b
+bounds = np.hstack((l, u))
 
-# Interior point solver
-print("\n Interior point solver:")
-N = 1
+N = 10
 times = np.zeros((N))
 for i in range(N):
     start_timer = timeit.default_timer()
-    solIP = Solvers.QPSolverInteriorPoint(H, g, CBar, dBar)
+    res = sp.optimize.linprog(c, A_eq=A_eq, b_eq=b_eq, bounds=bounds,
+                            method='highs-ipm', 
+                            options={"disp":False,
+                                    "presolve":False,
+                                    "primal_feasibility_tolerance":1e-10,
+                                    "dual_feasibility_tolerance":1e-10,
+                                    "ipm_optimality_tolerance":1e-12})
     times[i] = timeit.default_timer() - start_timer
 print(f"Average solution time: {np.average(times):1.4f}, "
-      f"iter = {solIP['iter']}")
-xIP = solIP['x']
-zIP = solIP['z']
-printStats(xIP, zIP)
+      f"iter = {res['nit']}")
 
-# Active set method
 
-# Find feasible initial point
-nx = n
-nz = m
-nLP = nx + nz
-mLP = m + nz
+x = res['x']
+P = x
+Pd = P[0:nd]
+Pg = P[nd:n]
+mu = -res['eqlin']['marginals'][np.newaxis].T
+lam = -res['upper']['marginals'][np.newaxis].T
 
-# Feasible initial point for Phase 1 LP
-xTilde = x0
-gamma = 1
-x0LP = cvxopt.matrix(0.0, (nLP, 1))
-z0 = np.maximum(dBar - CBar.T@xTilde, 0)
-x0LP[0:nx] = cvxopt.matrix(xTilde)
-x0LP[nx:nLP] = cvxopt.matrix(z0)
+# Print solution statistics
+L =  g.T@x - mu.T@(A.T@x - b)  - lam.T@x
+dLdx = g - A@mu - lam
+dLdmu = -(A.T@x - b)
+print(f"dLdx/L = {np.linalg.norm(dLdx, np.inf)/np.abs(L[0]):1.3e}, "
+      f"dLdz/d = {np.max(dLdmu):1.3e}")
 
-# LP solver interface:
-# minimize    c'*x
-# subject to  G*x <= h
-c = cvxopt.matrix(0.0, (nLP, 1))
-c[nx:nLP] = 1.0
+#########################################################################################
+# Custom revised simplex method
+#########################################################################################
+# Convert problem to match custom solver interface:
+# min_x : g'x
+# s.t.  : Ax = b
+#       :  x >= 0
+I = np.identity(n)
 
-G = cvxopt.matrix(0.0, (mLP, nLP))
-G[0:nz, 0:nx] = cvxopt.matrix(CBar.T)
-Gzx = G[0:nz, nx:]
-Gzx[::nz+1] = gamma
-G[:nz, nx:] = Gzx
-Gzz = G[nz:, nx:]
-Gzz[::nz+1] = 1.0
-G[nz:, nx:] = Gzz
+gBar = np.zeros((4*n, 1))
+gBar[0:n] = g
+gBar[n:2*n] = -g
 
-h = cvxopt.matrix(0.0, (mLP, 1))
-h[0:nz] = cvxopt.matrix(dBar)
+ABar = np.zeros((m+2*n, 4*n))
+ABar[0:m        ,0:n] = -A.T
+ABar[m:m+n      ,0:n] = -I
+ABar[m+n:m+2*n  ,0:n] = -I
 
-sol = cvxopt.solvers.lp(c, G, h, options={'show_progress': False})
+ABar[0:m        ,n:2*n] = A.T
+ABar[m:m+n      ,n:2*n] = I
+ABar[m+n:m+2*n  ,n:2*n] = I
 
-# x0 = sol['x'][0:nx][np.newaxis].T
-x0 = np.array(sol['x'])[0:nx]
-# print(x0)
+ABar[m:m+n      ,2*n:3*n] = -I
 
-print("\n Active set solver:") 
-N = 1
-times = np.zeros((N))
-for i in range(N):
-    start_timer = timeit.default_timer()
-    solAct = Solvers.QPSolverInequalityActiveSet(H, g, CBar, dBar, x0=x0)
-    times[i] = timeit.default_timer() - start_timer
-print(f"Average solution time: {np.average(times):1.4f}, "
-      f"iter = {solAct['iter']}")
-xAct = solAct['x']
-zAct = solAct['z']
-printStats(xAct, zAct)
+ABar[m+n:m+2*n  ,3*n:4*n] = I
 
-# Convert problem to match CVXOPT solver interface: 
-# minimize    (1/2)*x'*P*x + q'*x
-# subject to  G*x <= h
-#             A*x = b.
-P = cvxopt.matrix(H)
-q = cvxopt.matrix(g)
-G = cvxopt.matrix(-CBar.T)
-h = cvxopt.matrix(-dBar)
+bBar = np.zeros((m+2*n, 1))
+bBar[0:m] = b
+bBar[m:m+n] = l
+bBar[m+n:m+2*n] = u
 
-print("\n CVXopt solver")
-N = 1
-times = np.zeros((N))
-for i in range(N):
-    start_timer = timeit.default_timer()
-    solCVX = cvxopt.solvers.qp(P, q, G, h, 
-                               options={'show_progress': False})
-    times[i] = timeit.default_timer() - start_timer
-print(f"Average solution time: {np.average(times):1.4f}, "
-      f"iter = {solCVX['iterations']}")
-xCVX = np.array(solCVX['x'])
-zCVX = np.array(solCVX['z'])
-printStats(xCVX, zCVX)
-outData = {"U": xCVX}
-sp.io.savemat(f'{workDir}/solCVX.mat', outData)
+x0 = np.ones((4*n, 1))
 
-# Compare solutions
+sol = Solvers.LPSolverRevisedSimplex(-gBar, ABar, bBar, x0)
+# xs = sol['x']
+# print(f"xs = \n{xs}")
 
-print("\n Relative errors")
-errIPx = np.linalg.norm((xIP-xCVX), np.inf)/np.linalg.norm(xCVX, np.inf)
-errIPz = np.linalg.norm((zIP-zCVX), np.inf)/np.linalg.norm(zCVX, np.inf)
-errActx = np.linalg.norm(xAct-xCVX, np.inf)/np.linalg.norm(xCVX, np.inf)
-errActz = np.linalg.norm(zAct-zCVX, np.inf)/np.linalg.norm(zCVX, np.inf)
-print(f"Interior point: eps_x = {errIPx:1.4e}, eps_z = {errIPz:1.4e}")
-print(f"Active set: eps_x = {errActx:1.4e}, eps_z = {errActz:1.4e}")
 
-print("")
+low = np.zeros((4*n, 1))
+upp = 1e6*np.ones((4*n, 1))
+bounds = np.hstack((low, upp))
+res = sp.optimize.linprog(-gBar, A_eq=ABar, b_eq=bBar, bounds=bounds,
+                        method='highs-ipm', 
+                        options={"disp":False,
+                                "presolve":False,
+                                "primal_feasibility_tolerance":1e-10,
+                                "dual_feasibility_tolerance":1e-10,
+                                "ipm_optimality_tolerance":1e-12})
 
-# Plot KKT residuals of the IP method
-residuals = solIP['residuals']
+#########################################################################################
+# Plot solution 
+#########################################################################################
 
-define_plot_settings(22)
-fig, ax = plt.subplots(figsize=(8,5))
+# Plot solution (bar chart)
+define_plot_settings(18)
+fig, axs = plt.subplots(1, 2, figsize=(12,4), gridspec_kw={'width_ratios': [1, 2]})
+idxPd = np.arange(len(Pd))+1
+idxPg = np.arange(len(Pg))+1
 
-kMax = solIP['iter']+1
-iter = np.arange(1, kMax)
-lw = 3
-ax.semilogy(iter, residuals[0, 1:kMax].T, 'o-',
-            label=r'$\lVert r_L \rVert_{\infty}$', linewidth=lw)
-ax.semilogy(iter, residuals[2, 1:kMax].T, '^--',
-             label=r'$\lVert r_C \rVert_{\infty}$', linewidth=lw)
-ax.semilogy(iter, residuals[3, 1:kMax].T, 's-',
-            label=r'$\lVert r_{sz} \rVert_{\infty}$', linewidth=lw)
+axs[0].bar(idxPg,Pg, color='tab:orange')
+axs[0].plot(idxPg,Pg_max.flatten(), '_', color='k', markersize=12)
 
-ax.grid()
-ax.set_xlabel("Iteration: $k$")
-ax.set_ylabel("Residuals")
-ax.set_xticks(iter)
-# ax.set_ylim([0, 1])
-ax.legend()
+axs[1].bar(idxPd,Pd)
+axs[1].plot(idxPd,Pd_max.flatten(), '_', color='k', markersize=12)
+
+axs[0].set_xticks(idxPg,idxPg.astype(str),rotation=60)
+axs[1].set_xticks(idxPd,idxPd.astype(str),rotation=60)
+
+axs[0].set_xlabel('Generators: $g$')
+axs[1].set_xlabel('Demands: $d$')
+
+axs[0].set_ylabel("Power generated: $p_g$ [MW]")
+axs[1].set_ylabel("Power used: $p_d$ [MW]")
+
+axs[0].set_xlim([0, np.max(idxPg)+1])
+axs[1].set_xlim([0, np.max(idxPd)+1])
+
 fig.tight_layout()
-plt.savefig(f'{workDir}/KKT_residuals.eps')
+fig.savefig(f"{workDir}/solution.png")
+
+#########################################################################################
+# Plot supply-demand curve
+#########################################################################################
+
+supply = np.zeros((ng, 2))   # supply(quantity, price)
+demand = np.zeros((nd, 2))   # demand(quantity, price)
+
+# Sort according to bid prices and offer prices
+
+# Sort bid prices from highest to lowest (sell to highest bidder first)
+sort_idx_U = np.argsort(U.flatten())[::-1]
+U_sorted =  U[sort_idx_U]
+Pd_max_sorted = Pd_max[sort_idx_U]
+
+# Sort offer prices from lowest to highest (offer lowest price first)
+sort_idx_C = np.argsort(C.flatten())
+C_sorted =  C[sort_idx_C]
+Pg_max_sorted = Pg_max[sort_idx_C]
+
+# Determine demand quantity and price
+quantity = 0
+price = 0
+for i in range(nd):
+    pdMax = Pd_max_sorted[i]
+    quantity += pdMax
+    price = U_sorted[i]
+    demand[i, 0] = quantity[0]
+    demand[i, 1] = price[0]
+
+# Determine supply quantity and price
+quantity = 0
+price = 0
+for i in range(ng):
+    pgMax = Pg_max_sorted[i]
+    quantity += pgMax
+    price = C_sorted[i]
+    supply[i, 0] = quantity[0]
+    supply[i, 1] = price[0]
+
+# Solution
+PdSol = P[0:nd]
+PgSol = P[nd:n]
+demandSol = np.array([np.sum(PdSol), (U.T@PdSol)[0]])
+supplySol = np.array([np.sum(PgSol), (C.T@PgSol)[0]])
+
+define_plot_settings(18)
+fig, ax = plt.subplots(figsize=(9, 4))
+
+# Plot supply-demand curves
+ax.step(supply[:, 0], supply[:, 1], label='Supply')
+ax.step(demand[:, 0], demand[:, 1], label='Demand')
+
+ax.hlines(mu, 0, 10e3, color='black', linestyle='--',
+          label='Market clearing price')
+
+ax.set_xlabel(r"Energy quantity [MW]")
+ax.set_ylabel(r"Price [\euro/MW]")
+ax.legend(bbox_to_anchor=(1, 1), loc="upper left")
+ax.set_xlim([0, quantity])
+fig.tight_layout()
+
+fig.savefig(f"{workDir}/supply_demand.png", dpi=600)
+# plt.show(block=False)
+
+print(res)
 
 
-# print(xCVX)
+
+
+
+

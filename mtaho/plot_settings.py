@@ -19,5 +19,9 @@ def define_plot_settings(font_size = 20):
         plt.rcParams.update({
                 "text.usetex": True,
                 'text.latex.preamble': r'\usepackage{amsmath}'
+                                       r'\usepackage[T1]{fontenc}'
+                                       r'\usepackage[utf8]{inputenc}'
+                                       r'\usepackage{textcomp}'
+                                       r'\usepackage{eurosym}',
                                 #        r'\usepackage{commath}',
         })

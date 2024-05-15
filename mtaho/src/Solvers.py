@@ -491,8 +491,8 @@ class Solvers:
         """ Solve a LP in standard form using the revised simplex method
         Problem:
             min_x   : g'x
-            s.t.    : A'x = b
-                    :   x >= 0
+            s.t.    : Ax = b
+                    :  x >= 0
         """
 
         # Settings
