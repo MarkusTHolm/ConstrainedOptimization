@@ -38,6 +38,9 @@ Pd_max = data['Pd_max'].astype(np.float64)
 Pg_max = data['Pg_max'].astype(np.float64)
 U = data['U'].astype(np.float64)
 
+
+P_max = np.vstack((Pd_max, Pg_max))
+
 # Convert to the form:
 #     min_x   : g'x
 #     s.t.    : A'x <= b
@@ -106,17 +109,19 @@ print(f"dLdx/L = {np.linalg.norm(dLdx, np.inf)/np.abs(L[0]):1.3e}, "
 #########################################################################################
 # Custom revised simplex method
 #########################################################################################
-# Convert problem to match custom solver interface:
+# Convert problem to standard form to match custom solver interface:
 # min_x : g'x
 # s.t.  : Ax = b
 #       :  x >= 0
 I = np.identity(n)
 
-gBar = np.zeros((4*n, 1))
-gBar[0:n] = g
-gBar[n:2*n] = -g
+nS = 4*n
+mS = m+2*n
+gBar = np.zeros((nS, 1))
+gBar[0:n] = -g
+gBar[n:2*n] = g
 
-ABar = np.zeros((m+2*n, 4*n))
+ABar = np.zeros((mS, 4*n))
 ABar[0:m        ,0:n] = -A.T
 ABar[m:m+n      ,0:n] = -I
 ABar[m+n:m+2*n  ,0:n] = -I
@@ -129,14 +134,66 @@ ABar[m:m+n      ,2*n:3*n] = -I
 
 ABar[m+n:m+2*n  ,3*n:4*n] = I
 
-bBar = np.zeros((m+2*n, 1))
+bBar = np.zeros((mS, 1))
 bBar[0:m] = b
 bBar[m:m+n] = l
 bBar[m+n:m+2*n] = u
 
-x0 = np.ones((4*n, 1))
+x0 = np.ones((nS, 1))
 
-sol = Solvers.LPSolverRevisedSimplex(-gBar, ABar, bBar, x0)
+# Find initial feasible point by solving:
+# min_{x,t} : [0]'[x ]
+#             [1] [t ]
+#             [0] [s1]
+#             [0] [s2]
+#       s.t.  :             [x ] 
+#               [ A e  -I 0][t ]   [b]
+#               [-A e  0 -I][s1] = [-b]
+#                           [s2] 
+n1 = (nS+1+2*mS)
+m1 = 2*mS
+e = np.ones((mS, 1))
+I = np.identity(mS)
+
+g1 = np.zeros((n1, 1))
+g1[nS] = 1
+
+A1 = np.zeros((m1, n1))
+A1[0:mS,  0:nS] = ABar
+A1[mS:m1, 0:nS] = -ABar
+A1[0:mS,  nS:nS+1] = e
+A1[mS:m1, nS:nS+1] = e
+A1[0:mS:, nS+1:nS+1+mS] = -I
+A1[mS:m1:,nS+1+mS:n1] = -I
+
+b1 = np.zeros((m1, 1))
+b1[0:mS] = bBar
+b1[mS:m1] = -bBar
+
+t = np.max(np.abs(bBar))
+s1 = t*e - bBar
+s2 = t*e + bBar
+x0P1 = np.zeros((n1, 1))
+x0P1[nS] = t
+x0P1[nS+1:nS+1+mS] = s1
+x0P1[nS+1+mS:n1] = s2   
+
+res01 = sp.optimize.linprog(g1, A_eq=A1, b_eq=b1, x0=x0P1,
+                            method='revised simplex', 
+                            options={"disp":False})
+
+sol = Solvers.LPSolverRevisedSimplex(g1, A1, b1, x0P1)
+
+x0 = res01['x'][0:nS][np.newaxis].T
+x0[np.isclose(x0, 0)] = 0
+
+# res02 = sp.optimize.linprog(gBar, A_eq=ABar, b_eq=bBar, x0=x0,
+#                             method='revised simplex', 
+#                             options={"disp":False})
+
+# sol = Solvers.LPSolverRevisedSimplex(gBar, ABar, bBar, x0)
+
+
 # xs = sol['x']
 # print(f"xs = \n{xs}")
 
@@ -144,13 +201,15 @@ sol = Solvers.LPSolverRevisedSimplex(-gBar, ABar, bBar, x0)
 low = np.zeros((4*n, 1))
 upp = 1e6*np.ones((4*n, 1))
 bounds = np.hstack((low, upp))
-res = sp.optimize.linprog(-gBar, A_eq=ABar, b_eq=bBar, bounds=bounds,
+res2 = sp.optimize.linprog(gBar, A_eq=ABar, b_eq=bBar, bounds=bounds,
                         method='highs-ipm', 
                         options={"disp":False,
                                 "presolve":False,
                                 "primal_feasibility_tolerance":1e-10,
                                 "dual_feasibility_tolerance":1e-10,
                                 "ipm_optimality_tolerance":1e-12})
+x2 = res2['x'][n:2*n]
+print(f"Solution error: {np.linalg.norm(x2-x,np.inf)}")
 
 #########################################################################################
 # Plot solution 

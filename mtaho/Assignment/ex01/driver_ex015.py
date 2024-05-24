@@ -119,9 +119,9 @@ x5, lam5 = Solvers.solveEqualityQP(H, g, A, b, type='LUSparse')
 print("x5 = \n", x5)
 print("lam5 = \n", lam5)
 
-x6, lam6 = Solvers.solveEqualityQP(H, g, A, b, type='LDLSparse')
-print("x6 = \n", x6)
-print("lam6 = \n", lam6)
+# x6, lam6 = Solvers.solveEqualityQP(H, g, A, b, type='LDLSparse')
+# print("x6 = \n", x6)
+# print("lam6 = \n", lam6)
 
 # Check for errors
 print("x_error = \n", 
@@ -137,43 +137,47 @@ print("lam_error = \n",
 types = ['LU', 'LDL',  'LUSparse', 'NullSpace',
          'RangeSpace']
 # types = types[-2:]
-NArray = np.arange(1000, 2000, 200)
+NArray = np.arange(1000, 2200, 200)
 times = np.zeros((len(NArray), len(types)))
 outPath = f"{workDir}/timings_solvers.csv"
 
 if 1:
-    for i, type in enumerate(types):
-        for j, n in enumerate(NArray):
-            H, g, A, b, x0, lam0 = setupProblem(n, alpha, beta, density)            
-            start_timer = timeit.default_timer()
-            x, lam = Solvers.solveEqualityQP(H, g, A, b, type)        
-            times[j, i] = timeit.default_timer() - start_timer
-    
-    df = pd.DataFrame(times, index=NArray, columns=types)
-    df.to_csv(outPath)
+    for beta in [0.2, 0.4, 0.6, 0.8]:
+        N = 5
+        times = np.zeros((len(NArray), len(types)))
+        for i in range(N):
+            for i, type in enumerate(types):
+                for j, n in enumerate(NArray):
+                    H, g, A, b, x0, lam0 = setupProblem(n, alpha, beta, density)            
+                    start_timer = timeit.default_timer()
+                    x, lam = Solvers.solveEqualityQP(H, g, A, b, type)        
+                    times[j, i] += timeit.default_timer() - start_timer
+        times = times/N
+        df = pd.DataFrame(times, index=NArray, columns=types)
+        df.to_csv(outPath)
 
-define_plot_settings(16)
-df = pd.read_csv(outPath)
-fig, ax = plt.subplots()
-for k, type in enumerate(types):
-    if k % 2:
-        ls = 'o--'
-        fc = None
-        ms = 6
-    else:
-        ls = 's-'
-        fc = 'none'
-        ms = 7
-    ax.plot(NArray, df[type], ls, label=type, linewidth=2, 
-             markerfacecolor=fc, markeredgewidth=2, markersize=ms)
-ax.set_xlabel("Problem size: $N$")
-ax.set_ylabel("Solution time [s]")
-ax.set_xlim([np.min(NArray)*0.95, np.max(NArray)*1.1])
-ax.set_ylim([0, np.max(df[types])*1.1])
-# ax.set_ylim([0, 1])
-ax.legend()
-fig.tight_layout()
-plt.savefig(f'{workDir}/timings_solvers.png')
+        define_plot_settings(16)
+        df = pd.read_csv(outPath)
+        fig, ax = plt.subplots(figsize=(6, 4))
+        for k, type in enumerate(types):
+            if k % 2:
+                ls = 'o--'
+                fc = None
+                ms = 6
+            else:
+                ls = 's-'
+                fc = 'none'
+                ms = 7
+            ax.plot(NArray, df[type], ls, label=type, linewidth=2, 
+                    markerfacecolor=fc, markeredgewidth=2, markersize=ms)
+        ax.set_xlabel("Problem size: $N$")
+        ax.set_ylabel("Solution time [s]")
+        # ax.set_xlim([np.min(NArray)-10, np.max(NArray)+10])
+        ax.set_ylim([0, np.max(df[types])*1.1])
+        # ax.set_ylim([0, 1])
+        ax.legend()
+        fig.tight_layout()
+        plt.savefig(f'{workDir}/timings_solvers_beta_{beta:1.1f}.png')
 
 ### 10) Sparsity pattern of K
 # N = 100

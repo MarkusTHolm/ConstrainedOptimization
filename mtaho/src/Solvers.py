@@ -41,8 +41,7 @@ class Solvers:
             case 'RangeSpace':
                 x, lam = self.EqualityQPSolverRangeSpace(H, g, A, b)
             case _:
-                print("Solution type not defined")
-                x, lam = 0, 0
+                raise ValueError("Solution type not defined")            
 
         return x, lam
 
@@ -116,7 +115,6 @@ class Solvers:
             F = qdldl.Solver(K.tocsc())
             u = F.solve(r)
             u = u[np.newaxis].T
-
                
         # Map solution to design variables and Lagrange multipliers
         x = u[0:n]
@@ -126,8 +124,7 @@ class Solvers:
     @staticmethod
     def EqualityQPSolverNullSpace(H, g, A, b):
         """ Solve system Ku = r using Null-Space procedure """ 
-        n = np.shape(A)[0]
-        m = np.shape(A)[1]
+        n, m = np.shape(A)
         Q, Rbar = scipy.linalg.qr(A)
         m1 = np.shape(Rbar)[1]
         Q1 = Q[:, 0:m1]
@@ -141,9 +138,8 @@ class Solvers:
     
     @staticmethod
     def EqualityQPSolverRangeSpace(H, g, A, b):
-        """ Solve system Ku = r using Null-Space procedure """ 
-        n = np.shape(A)[0]
-        m = np.shape(A)[1]
+        """ Solve system Ku = r using Range-Space procedure """ 
+        n, m = np.shape(A)
         # 1) Cholesky factorize H
         c, L = scipy.linalg.cho_factor(H)
         # 2) Solve Hv = g for v
@@ -496,18 +492,32 @@ class Solvers:
         """
 
         # Settings
-        maxiter = 100       # Maximum no. of iterations
+        maxiter = 1000       # Maximum no. of iterations
         numtol = 1e-6       # Numerical tolerance for checks
 
         # Initialize
-        n = np.shape(x0)[0]
-        m = np.shape(A)[0]
+        m, n = np.shape(A)
         printValues = n < 10
         x = x0.copy()                         # Start-iterate
         Is = np.arange(n)                     # Full index set
         active = np.isclose(x[:,0], 0)        # Find non-basic variables
         Ns = Is[active]                       # Non-basic set
         Bs = np.setdiff1d(Is, Ns)             # Basic set
+
+        gB = np.zeros((m, 1))
+        B = np.zeros((m, m))
+
+        B[:, 0:len(Bs)] = A[:, Bs]
+        options = Ns
+        options = options[options < n]  # and they have to be non-artificial    
+        for i in range(n):  # somewhat arbitrary, but we need another way out
+            # permute the options, and take as many as needed
+            new_basis = np.random.permutation(options)[:m-len(Bs)]
+            B[:, len(Bs):] = A[:, new_basis]  # update the basis matrix
+            rank = np.linalg.matrix_rank(B)      # check the rank
+            print(f"rank = {rank}")
+            if rank == m:
+                break
 
         sol = {}
         sol['succes'] = 0
@@ -519,15 +529,16 @@ class Solvers:
 
             # Define non-basic and variables
             N = A[:, Ns]
-            B = A[:, Bs]
             xN = x[Ns]
             xB = x[Bs]     
             gN = g[Ns]
-            gB = g[Bs]
+            
+            B[:, 0:len(Bs)] = A[:, Bs]
+            gB[0:len(Bs)] = g[Bs]
 
             # Solve for lagrange multiplers for the inequality constraints
             mu = np.linalg.solve(B.T, gB)
-            
+
             # Find lagrange multipliers for the bound constraints
             lam = gN - N.T @ mu
 
