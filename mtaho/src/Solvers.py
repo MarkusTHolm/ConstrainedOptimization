@@ -49,8 +49,7 @@ class Solvers:
     def EqualityQPKKT(H, g, A, b, sparse=False):
         """ Setup the KKT system for an equality constrained QP"""
         # Initialize
-        n = np.shape(H)[0]
-        m = np.shape(A)[1]
+        n, m = np.shape(A)
         if not sparse:
             K = np.zeros((n + m, n + m), dtype=np.float64)
         else:
@@ -112,7 +111,8 @@ class Solvers:
             # K = 0.5*(K + K.T)
             # K = scipy.sparse.lil_matrix(K)
 
-            F = qdldl.Solver(K.tocsc())
+            K = 0.5*(K + K.T)
+            F = qdldl.Solver(K.tocsc(), upper=False)
             u = F.solve(r)
             u = u[np.newaxis].T
                

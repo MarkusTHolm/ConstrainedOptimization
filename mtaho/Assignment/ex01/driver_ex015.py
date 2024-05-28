@@ -141,10 +141,11 @@ NArray = np.arange(1000, 2200, 200)
 times = np.zeros((len(NArray), len(types)))
 outPath = f"{workDir}/timings_solvers.csv"
 
-if 1:
-    for beta in [0.2, 0.4, 0.6, 0.8]:
+
+if 0:
+    for beta in [0.5]:
         N = 5
-        times = np.zeros((len(NArray), len(types)))
+        times = np.zeros((len(NArray), len(types)))    
         for i in range(N):
             for i, type in enumerate(types):
                 for j, n in enumerate(NArray):
@@ -156,28 +157,71 @@ if 1:
         df = pd.DataFrame(times, index=NArray, columns=types)
         df.to_csv(outPath)
 
-        define_plot_settings(16)
-        df = pd.read_csv(outPath)
-        fig, ax = plt.subplots(figsize=(6, 4))
-        for k, type in enumerate(types):
-            if k % 2:
-                ls = 'o--'
-                fc = None
-                ms = 6
-            else:
-                ls = 's-'
-                fc = 'none'
-                ms = 7
-            ax.plot(NArray, df[type], ls, label=type, linewidth=2, 
-                    markerfacecolor=fc, markeredgewidth=2, markersize=ms)
-        ax.set_xlabel("Problem size: $N$")
-        ax.set_ylabel("Solution time [s]")
-        # ax.set_xlim([np.min(NArray)-10, np.max(NArray)+10])
-        ax.set_ylim([0, np.max(df[types])*1.1])
-        # ax.set_ylim([0, 1])
-        ax.legend()
-        fig.tight_layout()
-        plt.savefig(f'{workDir}/timings_solvers_beta_{beta:1.1f}.png')
+define_plot_settings(16)
+df = pd.read_csv(outPath)
+fig, ax = plt.subplots(figsize=(5, 4))
+for k, type in enumerate(types):
+    if k % 2:
+        ls = 'o--'
+        fc = None
+        ms = 6
+    else:
+        ls = 's-'
+        fc = 'none'
+        ms = 7
+    ax.plot(NArray, df[type], ls, label=type, linewidth=2, 
+            markerfacecolor=fc, markeredgewidth=2, markersize=ms)
+ax.set_xlabel("Problem size: $n$")
+ax.set_ylabel("Solution time [s]")
+# ax.set_xlim([np.min(NArray)-10, np.max(NArray)+10])
+ax.set_ylim([0, np.max(df[types])*1.1])
+# ax.set_ylim([0, 1])
+# ax.legend()
+fig.tight_layout()
+plt.savefig(f'{workDir}/timings_solvers_beta_{beta:1.1f}.png')
+
+
+betaArray = np.linspace(0.05, .95, 10)
+outPath = f"{workDir}/timings_solvers_beta.csv"
+
+N = 10
+n = 2000
+times = np.zeros((len(betaArray), len(types)))
+if 1:
+    for i in range(N):
+        for j, beta in enumerate(betaArray):
+            for i, type in enumerate(types):
+                H, g, A, b, x0, lam0 = setupProblem(n, alpha, beta, density)            
+                start_timer = timeit.default_timer()
+                x, lam = Solvers.solveEqualityQP(H, g, A, b, type)        
+                times[j, i] += timeit.default_timer() - start_timer
+    times = times/N
+    df = pd.DataFrame(times, index=betaArray, columns=types)
+    df.to_csv(outPath)
+
+define_plot_settings(16)
+df = pd.read_csv(outPath)
+fig, ax = plt.subplots(figsize=(7, 4))
+for k, type in enumerate(types):
+    if k % 2:
+        ls = 'o--'
+        fc = None
+        ms = 6
+    else:
+        ls = 's-'
+        fc = 'none'
+        ms = 7
+    ax.plot(betaArray, df[type], ls, label=type, linewidth=2, 
+            markerfacecolor=fc, markeredgewidth=2, markersize=ms)
+ax.set_xlabel(r"$\beta$")
+ax.set_ylabel("Solution time [s]")
+ax.set_xlim([0, 1])
+ax.set_ylim([0, np.max(df[types])*1.1])
+# ax.set_ylim([0, 1])
+ax.legend(bbox_to_anchor=(1, 1), loc="upper left")
+fig.tight_layout()
+plt.savefig(f'{workDir}/timings_solvers_beta_var.png')
+
 
 ### 10) Sparsity pattern of K
 # N = 100
